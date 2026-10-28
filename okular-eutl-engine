@@ -1,0 +1,13 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+umask 077
+for eutl_java in "${JAVA_HOME:+$JAVA_HOME/bin/java}" /usr/lib/jvm/java-*/bin/java /usr/bin/java; do
+  [ -x "$eutl_java" ] || continue
+  eutl_major=$("$eutl_java" -version 2>&1 | sed -n 's/.*version "\([0-9][0-9]*\).*/\1/p' | head -n 1)
+  case "$eutl_major" in ''|*[!0-9]*) continue ;; esac
+  [ "$eutl_major" -ge 17 ] || continue
+  exec "$eutl_java" -Xmx768m -Dorg.slf4j.simpleLogger.defaultLogLevel=warn \
+    -jar /usr/share/okular-eutl/engine.jar "$@"
+done
+printf '%s\n' 'Az ellenőrzőmotorhoz Java 17 vagy újabb szükséges.' >&2
+exit 1
