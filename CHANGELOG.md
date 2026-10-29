@@ -2,6 +2,8 @@
 
 ## Kiadásra előkészített dokumentációs módosítások
 
+- A `.gitignore` kizárja a `makepkg` által letöltött Okular-forrásarchívumot és kiadási
+  aláírását is. A közreműködési útmutató tisztázza, hogy a `PKGBUILD` követett forrásfájl marad.
 - Az összes saját útmutató és tájékoztató magyar nyelvű: a főoldali leírás, a változásnapló,
   az adatvédelmi, bizalmi, biztonsági, tesztelési és közreműködési dokumentáció,
   valamint a külső összetevők ismertetése és a hibajegysablon.

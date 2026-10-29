@@ -5,6 +5,28 @@ Valódi PDF-et, aláírói tanúsítványdumpot, magánkulcsot, validálási jel
 A projekt saját dokumentációját, hibajegysablonjait és változásnaplóját magyarul tartsd karban.
 A fájlnevek, parancsok, API-azonosítók, komponensnevek és eredeti licencszövegek megőrzik az eredeti alakjukat.
 
+## Fordításkor keletkező fájlok
+
+A `makepkg` által letöltött `okular-*.tar.xz` forrásarchívumot és a hozzá tartozó
+`okular-*.tar.xz.sig` aláírást a `.gitignore` kizárja. A generált motorarchívum,
+a lefordított csomagok és a fordítási könyvtárak sem kerülnek a tárolóba.
+
+A `PKGBUILD` viszont követett forrásfájl: a verziókat, függőségeket és ellenőrzőösszegeket
+is tartalmazza, ezért nem zárjuk ki. A `.gitignore` egy már követett fájl módosításait
+egyébként sem rejtené el. A `scripts/prepare-source.py` a generált forráscsomag alapján
+frissíti az ellenőrzőösszegeket; ezek változását feltöltés előtt vizsgáld meg:
+
+```sh
+git diff -- PKGBUILD
+```
+
+Módosítatlan forrás és azonos csomagkészítési környezet esetén az előkészítés nem okozhat
+tartalmi eltérést a már megfelelő ellenőrzőösszegeket tartalmazó `PKGBUILD` fájlban.
+Forrásmódosítás, eltérő helyi csomagtartalom vagy tömörítési környezet esetén az eltérés
+okát ellenőrizni kell; a csomagleírás változásait ne rejtsd el helyi Git-beállítással.
+
+## A módosítások ellenőrzése
+
 1. Futtasd a `python3 scripts/audit-public.py` parancsot, és nézz át minden véglegesítésre előkészített fájlt.
 2. Futtasd a `python3 tests/verify-trust.py` parancsot.
 3. JDK 17 vagy újabb környezetben futtasd: `mvn -B -ntp -f backend/pom.xml verify`.

@@ -5,6 +5,9 @@
 /pkg/
 /dist/
 engine-source.tar.gz
+# A makepkg által letöltött eredeti Okular-forrás és kiadási aláírás
+/okular-*.tar.xz
+/okular-*.tar.xz.sig
 *.jar
 *.class
 *.pkg.tar.*
