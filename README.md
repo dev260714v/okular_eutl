@@ -242,3 +242,18 @@ A licenc eredeti szövege, a szerzői jogi nyilatkozatok, a műszaki azonosító
 
 Hibajegyhez és módosítási javaslathoz csak mesterséges tesztadatot vagy gondosan anonimizált
 adatot csatolj. Valódi aláírt dokumentumot vagy teljes validálási jelentést ne tölts fel nyilvános hibajegyhez.
+
+### Technikai többlet a PDF lezárása után
+
+A `TECHNICAL_TAIL_V1` szabály kizárólag sikeresen érvényesített aláírás esetén
+enged zöld eredményt kék információs jelzéssel. Az aláírt verzió szabályos
+`startxref`/`%%EOF` lezárása után legfeljebb 4096 bájt állhat: PDF-üreskarakterek,
+vagy egy UUID-alakú MIME-záróhatároló, opcionális `EOF` zárósorral. Ellenőrizzük
+a `startxref` célját is. Tetszőleges szöveg, új PDF-verzió, objektum, ismeretlen
+határoló és űrlap-megjelenítési változás nem tartozik a kivételbe.
+A szabály nem általános vizuális vagy jogi azonosságvizsgálat: a véges nyelvtan
+kizárja, hogy az elfogadott többlet új PDF-objektumot vagy hivatkozást tartalmazzon.
+Az exportban a `documentCoverage.status` továbbra is `PARTIAL`, az
+`assessment` értéke `TECHNICAL_ONLY`, a `technicalTail` pedig rögzíti a szabályt,
+a típust, a bájtszámot és az aláírt verzió végét. Ismeretlen esetben marad a
+figyelmeztetés. A program ebből nem von le automatikus joghatásbeli következtetést.

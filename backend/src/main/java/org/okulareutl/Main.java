@@ -74,10 +74,10 @@ public final class Main {
             } else {
                 // Recreate the analyzer: the probe must not cache a verifier without EU trust data.
                 try {
-                    validate(PdfInput.validator(input, output.resolve("pdf-work")), output, config, result, true, probedSigners, hasTimestamps);
+                    validate(input, PdfInput.validator(input, output.resolve("pdf-work")), output, config, result, true, probedSigners, hasTimestamps);
                 } catch (RetryAllLists e) {
                     result.put("listHintFallback", true);
-                    validate(PdfInput.validator(input, output.resolve("pdf-work")), output, config, result, false, probedSigners, hasTimestamps);
+                    validate(input, PdfInput.validator(input, output.resolve("pdf-work")), output, config, result, false, probedSigners, hasTimestamps);
                 }
             }
         } catch (Exception e) {
@@ -93,7 +93,7 @@ public final class Main {
         if ("ERROR".equals(result.get("status"))) System.exit(1);
     }
 
-    static void validate(SignedDocumentValidator validator, Path output, Path config,
+    static void validate(Path input, SignedDocumentValidator validator, Path output, Path config,
                          Map<String,Object> result, boolean useHints, List<CertificateToken> probedSigners, boolean hasTimestamps) throws Exception {
         Path pem = config.resolve("lotl-anchors.pem");
         if (!Files.isRegularFile(pem))
@@ -216,7 +216,7 @@ public final class Main {
         result.put("signatures", signatures);
         result.put("timestamps", timestamps);
         result.put("timestampStatus", TimestampResults.summarize(timestamps));
-        result.put("documentCoverage", DocumentCoverage.summarize(signatures, timestamps));
+        result.put("documentCoverage", TechnicalTail.apply(input, signatures, DocumentCoverage.summarize(signatures, timestamps)));
         result.put("status", "COMPLETED");
     }
 
@@ -240,6 +240,10 @@ public final class Main {
             s.put("timestampIds", diagnostic.getTimestampList().stream().map(t -> t.getId()).toList());
             s.put("coverage", DocumentCoverage.signature(diagnostic.getSignatureByteRange(),
                 diagnostic.isSignatureByteRangeValid(), fileSize));
+            if (!"UNKNOWN".equals(s.get("coverage"))) {
+                var range = diagnostic.getSignatureByteRange();
+                s.put("signedRevisionEnd", range.get(2).add(range.get(3)).longValueExact());
+            }
             signatures.add(s);
         }
         return signatures;
