@@ -1,28 +1,42 @@
-# Changelog
+# Változásnapló
 
-## 0.1.3 — Network, coverage and cache hardening
+## Kiadásra előkészített dokumentációs módosítások
 
-- Restrict TL/AIA/CRL/OCSP transport to public HTTP(S) destinations, with DNS checks
-  at connection time, bounded redirects and no HTTPS downgrades or system proxies.
-- Bound response bodies during streaming and decompression; abort oversized/intermediate bodies.
-- Show current PDF revision coverage separately from signature validity. The overall
-  result is green only when a valid signature covers the current revision and all signatures pass.
-- Load only matching signer certificates; enforce 30-day reuse and prune stored signers
-  to 256 certificates / 16 MiB, removing expired and orphaned hints on successful writes.
-- Restore GitHub checks and source exclusions missing from the initial public upload.
-- Add offline signed-PDF/RFC3161/CRL integration tests, transport and cache regression tests,
-  a shaded-engine CLI check and offscreen Qt6 tests in CI on Java 17/27.
-- Synchronize the installable dialog patch automatically when preparing source packages.
+- Az összes saját útmutató és tájékoztató magyar nyelvű: a főoldali leírás, a változásnapló,
+  az adatvédelmi, bizalmi, biztonsági, tesztelési és közreműködési dokumentáció,
+  valamint a külső összetevők ismertetése és a hibajegysablon.
+- A teljes útmutató a `README.md` fájlba került; a korábbi `README.hu.md` erre mutat.
+- Magyar megnevezést kaptak az automatikus ellenőrzés saját munkafolyamat- és lépésfeliratai,
+  valamint a bizalmi ujjlenyomatlista és a kizárási szabályok magyarázatai.
+- Az eredeti licencszöveg és a műszaki azonosítók változatlanok.
 
-## 0.1.2 — Initial public source release
+## 0.1.3 – A hálózatkezelés, a lefedettség és a gyorsítótár megerősítése
 
-- Integrated Hungarian-language EU signature validation dialog for patched Okular 26.08.2.
-- Local DSS 6.5.1 engine with authenticated EU and national trusted lists.
-- Separate validity and signature-qualification results.
-- Busy indicator, elapsed time, cancellation, colored verdicts and collapsible details.
-- Toolbar action and more precise form/signature notifications.
-- Persistent evidence cache and certificate-bound trusted-list lookup hints.
-- Explicit shutdown of trusted-list worker threads.
-- Reusable public signer certificates remain adjunct evidence, not unconditional trust anchors.
-- Source prepared for public distribution with neutral Java namespaces and no user documents,
-  validation reports, machine paths or private development history.
+- A TL/AIA/CRL/OCSP-lekérések csak nyilvános HTTP(S)-címeket érhetnek el.
+  Kapcsolódáskor DNS-ellenőrzés történik; az átirányítások száma korlátozott,
+  HTTPS-ről HTTP-re visszalépés és rendszerszintű proxy használata nincs.
+- A válaszméretet a motor folyamatos olvasás és kitömörítés közben korlátozza;
+  a túl nagy válaszokat és az átirányítások köztes választesteit megszakítja.
+- A jelenlegi PDF-változat lefedettsége külön jelenik meg az aláírás érvényességétől.
+  Az összesítés csak akkor zöld, ha minden aláírás érvényes, és legalább egy érvényes aláírás lefedi a jelenlegi változatot.
+- Csak az aktuális dokumentumhoz illeszkedő mentett aláírói tanúsítványok töltődnek be.
+  Újrafelhasználásuk legfeljebb 30 napig engedélyezett; sikeres íráskor a készlet legfeljebb
+  256 tanúsítványra és 16 MiB-ra csökken, a lejárt és árva listakeresési segédadatok törlésével.
+- Visszakerültek az első nyilvános feltöltésből kimaradt GitHub-ellenőrzések és forráskizárások.
+- Hálózat nélkül futó, aláírt PDF-es, RFC3161- és CRL-integrációs tesztek, hálózatkezelési és
+  gyorsítótár-regressziós tesztek, külön folyamatban indított motorteszt és képernyő nélküli
+  Qt6-felületteszt került az automatikus ellenőrzésbe, Java 17 és 27 támogatással.
+- A forráscsomag előkészítése automatikusan beépíti az ellenőrzőablak fejlécét az Okular javításába.
+
+## 0.1.2 – Első nyilvános forráskiadás
+
+- Magyar nyelvű EU-s aláírás-ellenőrző ablak a módosított Okular 26.08.2-höz.
+- Helyi DSS 6.5.1-motor hitelesített EU-s és tagállami bizalmi listákkal.
+- Külön érvényességi eredmény és aláírás-minősítés.
+- Folyamatjelző, eltelt idő, megszakítás, színes eredményjelzés és kinyitható részletek.
+- Eszköztárgomb és pontosított űrlap-, illetve aláírásértesítések.
+- Tartós bizonyíték-gyorsítótár és tanúsítványhoz kötött bizalmilista-keresési segédadatok.
+- A bizalmi listákat feldolgozó háttérszálak kifejezett leállítása.
+- A mentett nyilvános aláírói tanúsítványok segédadatok maradnak, nem válnak feltétlen bizalmi ponttá.
+- Nyilvános terjesztésre előkészített forrás semleges Java-névtérrel, felhasználói dokumentumok,
+  validálási jelentések, géphez kötött személyes elérési utak és magánjellegű fejlesztési előzmények nélkül.

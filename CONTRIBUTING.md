@@ -1,32 +1,38 @@
-# Contributing
+# Közreműködési útmutató
 
-Use synthetic documents and anonymous reproduction steps. Never add production PDFs,
-real signers' certificate dumps, private keys, validation reports or personal machine paths.
+Mesterségesen előállított dokumentumokkal és személyes adat nélküli reprodukálási lépésekkel dolgozz.
+Valódi PDF-et, aláírói tanúsítványdumpot, magánkulcsot, validálási jelentést vagy személyes gépi elérési utat ne adj a tárolóhoz.
+A projekt saját dokumentációját, hibajegysablonjait és változásnaplóját magyarul tartsd karban.
+A fájlnevek, parancsok, API-azonosítók, komponensnevek és eredeti licencszövegek megőrzik az eredeti alakjukat.
 
-1. Run `python3 scripts/audit-public.py` and inspect every staged file.
-2. Run `python3 tests/verify-trust.py`.
-3. Run `mvn -B -ntp -f backend/pom.xml verify` with a JDK 17 or later.
-4. After engine, test or trust changes, run `python3 scripts/prepare-source.py`.
-5. `scripts/prepare-source.py` also synchronizes the canonical `eutldialog.h` into
-   `okular-eutl.patch`. Commit both the generated patch and PKGBUILD checksums.
-   Test that the patch still applies to the exact supported upstream source.
+1. Futtasd a `python3 scripts/audit-public.py` parancsot, és nézz át minden véglegesítésre előkészített fájlt.
+2. Futtasd a `python3 tests/verify-trust.py` parancsot.
+3. JDK 17 vagy újabb környezetben futtasd: `mvn -B -ntp -f backend/pom.xml verify`.
+4. Ellenőrizd a lefordított motort külön folyamatban is:
+   `python3 tests/engine-cli.py backend/target/okular-eutl-0.1.3.jar`.
+5. A motor, a tesztek vagy a bizalmi adatok módosítása után futtasd a `python3 scripts/prepare-source.py` parancsot.
+6. Ez a szkript az elsődleges `eutldialog.h` fejlécet is beépíti az `okular-eutl.patch` fájlba.
+   A generált javítást és a PKGBUILD ellenőrzőösszegeit is véglegesítsd.
+   Ellenőrizd, hogy a javítás továbbra is alkalmazható a pontosan támogatott eredeti Okular-forrásra.
 
-Changes to trust-list acceptance, revocation freshness, file hashes or verdict aggregation
-need regression tests. Never make missing evidence, an untrusted certificate or an unknown
-result display as a successful validation. Never promote a cached signer to a trust anchor.
+A bizalmi listák elfogadását, a visszavonási adatok frissességét, a fájllenyomatokat vagy
+az összesített eredményt érintő módosításokhoz regressziós teszt szükséges.
+Hiányzó bizonyítékot, nem megbízható tanúsítványt vagy ismeretlen eredményt soha ne jeleníts meg
+sikeres ellenőrzésként. A gyorsítótárban tárolt aláírót ne emeld bizalmi ponttá.
 
-UI-only tests can be compiled with Qt6 development packages:
+A kizárólag felületi teszt a Qt6 fejlesztői csomagjaival fordítható:
 
 ```sh
 c++ -std=c++17 -fPIC -I. tests/ui-smoke.cpp $(pkg-config --cflags --libs Qt6Widgets) -o /tmp/okular-eutl-ui-test
 QT_QPA_PLATFORM=offscreen /tmp/okular-eutl-ui-test
 ```
 
-CI runs the Java suite on JDK 17 and 27 and the Qt6 test offscreen. The Java integration
-suite generates all test keys, certificates, CRLs, RFC3161 timestamps and signed PDFs
-at runtime. Its synthetic test CA never becomes an application trust anchor.
-The transport tests use an injected DNS/address policy for their local HTTP fixture;
-that policy cannot be enabled through runtime configuration.
+Az automatikus ellenőrzés a Java-teszteket JDK 17 és 27 alatt, a Qt6-tesztet képernyő nélkül futtatja.
+A Java-integrációs tesztek futás közben generálják az összes tesztkulcsot, tanúsítványt,
+CRL-t, RFC3161-időbélyeget és aláírt PDF-et. A mesterséges teszthitelesítő nem válik az alkalmazás bizalmi pontjává.
+A hálózati tesztek saját DNS- és címengedélyezési szabályt adnak a helyi HTTP-tesztkiszolgálónak;
+ez a tesztbeállítás futtatási konfigurációval nem kapcsolható be.
 
-The Java tests and offscreen dialog tests do not replace a full patched-Okular build
-and manual desktop test. Describe the checks you actually ran in the pull request.
+A Java-tesztek és a képernyő nélküli párbeszédablak-tesztek nem helyettesítik a teljes,
+javított Okular lefordítását és kézi asztali kipróbálását.
+A módosítási kérelemben azt sorold fel, amit ténylegesen ellenőriztél.

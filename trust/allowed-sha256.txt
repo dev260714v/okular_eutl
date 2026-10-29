@@ -1,5 +1,5 @@
-# OJ C/2026/1944, 2026-04-15, certificates 2 and 6.
+# Hivatalos Lap, C/2026/1944, 2026-04-15; a 2. és 6. tanúsítvány.
 # https://eur-lex.europa.eu/eli/C/2026/1944/oj
-# The initial bundle contains a subset of the officially published candidates.
+# A kezdeti csomag a hivatalosan közzétett jelöltek egy részét tartalmazza.
 e0a620fbb6747362bb933ac44169d676a553444716cf5f31605f12a22b8396b1
 d2064fdd70f6982dcc516b86d9d5c56aea939417c624b2e478c0b29de54f8474

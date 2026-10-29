@@ -1,31 +1,49 @@
-# Privacy and data flow
+# Adatvédelem és adatáramlás
 
-The Okular dialog makes a byte-for-byte copy of the saved PDF in a private temporary
-directory and checks the SHA-256 binding of the returned result. The helper does not
-upload that PDF to a validation service. The temporary directory is removed when the dialog
-is destroyed; this is normal file deletion, not a secure-erasure guarantee.
+Az Okular ellenőrzőablaka a lemezre mentett PDF-ről bájtpontos másolatot készít egy
+elkülönített ideiglenes könyvtárba, majd ellenőrzi, hogy a kapott eredmény SHA-256-lenyomata
+egyezik-e ezzel a példánnyal. A motor nem tölti fel a PDF-et ellenőrzési szolgáltatáshoz.
+Az ideiglenes könyvtár az ellenőrzőablak megszűnésekor törlődik.
+Ez szokásos fájltörlés, nem garantált biztonságos adattörlés.
 
-Outbound requests retrieve EU/national trusted lists, AIA issuer certificates and
-OCSP/CRL evidence. OCSP requests may reveal certificate identifiers to the responder;
-network services can also observe the requester's IP address. Network access is not anonymous.
-The transport permits only public HTTP(S) destinations and checks DNS results at connection
-time, including redirected connections. It does not use system proxies. This limits local
-network access; it does not make third-party evidence endpoints anonymous or inherently safe.
+## Hálózati kérések
 
-The persistent user cache stores public validation evidence and reusable public signer
-certificates. These certificates can contain names and organizations even though they do
-not contain private keys. Cache directories are restricted to the current user.
-The application does not write the PDF or a cached green/red verdict into this evidence cache.
-Signer certificate reuse is limited to exact matches in the current document, a 30-day age,
-and a stored maximum of 256 certificates / 16 MiB after successful writes. Expired and oldest
-entries and orphaned list hints are pruned then. Manually remove the evidence cache to delete
-retained certificates immediately; closing the dialog alone does not erase this cache.
+A kimenő kérések EU-s és tagállami bizalmi listákat, AIA-kibocsátói tanúsítványokat,
+valamint OCSP/CRL-bizonyítékokat kérnek le. Az OCSP-kérések tanúsítványazonosítókat
+fedhetnek fel a válaszadó előtt, a hálózati szolgáltatók pedig a kérő IP-címét is láthatják.
+A hálózati elérés nem anonim.
 
-Saved reports and logs can contain signer identities, certificate data, document hashes,
-file paths, validation times and service URLs. Review and redact them before sharing.
-Closing the dialog does not remove reports that the user explicitly saved.
+A motor csak nyilvános HTTP(S)-célokat engedélyez, és a DNS-válaszokat kapcsolódáskor,
+az átirányított kapcsolatoknál is ellenőrzi. Rendszerszintű proxyt nem használ.
+Ez korlátozza a helyi hálózat elérését, de a külső bizonyítékkiszolgálókat nem teszi
+anonimmá vagy önmagukban megbízhatóvá.
 
-This source repository intentionally excludes private documents, production test data,
-validation reports, machine paths, credentials and generated development binaries.
-Only synthetic examples and public EU trust-anchor certificates are included.
-Use `scripts/audit-public.py` and manual review before committing new files.
+## Tartós gyorsítótár
+
+A felhasználói gyorsítótár nyilvános ellenőrzési bizonyítékokat és újra felhasználható,
+nyilvános aláírói tanúsítványokat tárol. A tanúsítványok neveket és szervezeti adatokat is
+tartalmazhatnak, bár magánkulcsot nem tartalmaznak. A gyorsítótár könyvtárai csak az adott
+felhasználó számára hozzáférhetők. Az alkalmazás nem menti ide a PDF-et vagy az ellenőrzés
+zöld/piros eredményét.
+
+Az aláírói tanúsítványok közül csak az aktuális dokumentumhoz pontosan illeszkedő,
+30 napnál nem régebbi bejegyzések használhatók újra. Sikeres írás után a tárolt készlet
+legfeljebb 256 tanúsítvány és 16 MiB. A motor ekkor törli a lejárt és legrégebbi bejegyzéseket,
+valamint az árván maradt listakeresési segédadatokat is.
+Azonnali eltávolításhoz kézzel töröld a bizonyítékok gyorsítótárát;
+az ellenőrzőablak bezárása önmagában nem törli ezt a tartós tárat.
+Az alapértelmezett elérési utat a [fő útmutató](../README.md#gyorsítótár-és-natív-tanúsítványtárolás) ismerteti.
+
+## Jelentések és naplók
+
+A mentett jelentések és naplók tartalmazhatnak aláírói személyazonosító adatokat,
+tanúsítványadatokat, dokumentumlenyomatokat, fájlelérési utakat, ellenőrzési időpontokat
+és szolgáltatási címeket. Megosztás előtt nézd át és anonimizáld őket.
+Az ablak bezárása nem törli azokat a jelentéseket, amelyeket a felhasználó külön elmentett.
+
+## Nyilvános forráskód
+
+A forrástárolóból kizárjuk a magándokumentumokat, a valódi üzemi tesztadatokat, a validálási
+jelentéseket, a géphez kötött személyes elérési utakat, a hitelesítési adatokat és a generált
+fejlesztői binárisokat. Csak mesterséges példák és nyilvános EU-s bizalmi tanúsítványok szerepelnek benne.
+Új fájl véglegesítése előtt futtasd a `scripts/audit-public.py` szkriptet, és kézzel is vizsgáld át a tartalmat.

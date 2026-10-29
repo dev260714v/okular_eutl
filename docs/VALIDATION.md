@@ -1,39 +1,52 @@
-# Validation status
+# Az ellenőrzések és tesztek állapota
 
-The source-check workflow runs Maven verification on JDK 17 and 27, checks the public
-source and pinned trust-anchor fingerprints, and checks deterministic packaging and
-synchronization of the canonical dialog header with the installable Okular patch.
-A separate CI job compiles and runs the Qt6 dialog test offscreen.
-The built shaded JAR is also launched as a separate process against generated unsigned
-and malformed PDFs to verify exit status, JSON status and the input hash contract.
+A forrásellenőrzési munkafolyamat JDK 17 és 27 alatt futtatja a Maven ellenőrzéseit,
+vizsgálja a nyilvános forrást és a rögzített bizalmi tanúsítvány-ujjlenyomatokat,
+valamint ellenőrzi a megismételhető csomagkészítést és az elsődleges felületi fejléc
+szinkronját a telepítendő Okular-javítással.
+Külön automatikus feladat fordítja és képernyő nélkül futtatja a Qt6-párbeszédablak tesztjét.
+A függőségekkel egyesített JAR külön folyamatként is elindul generált, aláírás nélküli és
+hibás PDF-ekkel: a teszt ellenőrzi a kilépési kódot, a JSON-állapotot és a bemeneti fájl lenyomatát.
 
-The Java suite covers trusted-list acceptance, cache expiry/corruption/concurrency,
-exact-certificate lookup hints, bounded non-trusting certificate reuse, worker shutdown,
-public-address filtering at connection time, redirect policy, and bounded HTTP bodies
-(including chunked responses, OCSP POST and decompressed gzip).
+## Java-egységtesztek
 
-The offline PDF integration suite generates real PDF signatures, a synthetic CA and
-signer, signed CRLs and RFC3161 timestamps in memory. It checks:
+A tesztek lefedik a bizalmi listák elfogadását; a gyorsítótár lejáratát, sérülését és párhuzamos
+használatát; a pontos tanúsítványhoz kötött keresési segédadatokat; a korlátozott,
+bizalmi pontot nem létrehozó tanúsítvány-újrafelhasználást; és a háttérszálak leállítását.
+Ellenőrzik továbbá a nyilvános hálózati címek kapcsolódáskori szűrését, az átirányítási szabályokat
+és a HTTP-válaszok méretkorlátját, beleértve a darabolt átvitelt, az OCSP POST-válaszát és a kitömörített gzip-adatot.
 
-- Valid signature and exact current-revision coverage.
-- Changed signed bytes yielding `TOTAL_FAILED / HASH_FAILURE`, even with a cached signer.
-- Revoked signer failing validation.
-- Missing trusted certificate chain remaining indeterminate, despite a cached signer.
-- A later unsigned PDF revision being reported as partial coverage.
-- A second PDF from the same cached signer still receiving document validation.
-- Real RFC3161 timestamp validation together with the PDF signature.
+## Aláírt PDF-ek integrációs tesztjei
 
-The test CA is supplied only by tests. It is never added to the application trust bundle.
-All synthetic private keys and signed documents are generated during testing and are not
-distributed as fixture files. The PDF suite uses the engine's report-mapping code, but does
-not simulate the full EU LOTL/national-list publication and signing infrastructure.
+A hálózat nélkül futó tesztek valódi PDF-aláírásokat, mesterséges hitelesítőt és aláírót,
+aláírt CRL-eket és RFC3161-időbélyegeket hoznak létre a memóriában. Az alábbi eseteket vizsgálják:
 
-The Qt6 test covers busy state, valid, invalid, indeterminate and mixed results, unsigned
-input, malformed JSON, mismatched file hashes, cancellation, and missing/partial/unknown
-current-revision coverage. Its helper process is synthetic; the Java suite checks actual
-PDF cryptography separately.
+- Érvényes aláírás és a jelenlegi PDF-változat pontos lefedettsége.
+- Aláírt bájtok módosítása esetén `TOTAL_FAILED / HASH_FAILURE` eredmény, mentett aláíró mellett is.
+- Visszavont aláíró sikertelen ellenőrzése.
+- Hiányzó megbízható tanúsítványlánc esetén nem eldönthető eredmény, mentett aláíró mellett is.
+- Későbbi, aláírás nélküli PDF-változat részleges lefedettségként történő jelzése.
+- Ugyanattól a mentett aláírótól származó második PDF külön dokumentumellenőrzése.
+- Valódi RFC3161-időbélyeg ellenőrzése a PDF-aláírással együtt.
 
-These checks do not replace a full patched-Okular build and manual desktop test on the
-target distribution, nor certify every PDF. Maintain and review EU trust configuration,
-revocation freshness, historical validation times and qualified-signature interpretation.
-Missing evidence must not become a successful or invalid verdict without grounds.
+A mesterséges hitelesítőt kizárólag a tesztek adják át az ellenőrzőnek;
+soha nem kerül az alkalmazás bizalmi tanúsítványcsomagjába.
+A mesterséges magánkulcsok és aláírt dokumentumok teszteléskor keletkeznek,
+nem terjesztjük őket előre elkészített tesztfájlokként.
+A PDF-es tesztek a motor jelentés-összeállító kódját használják,
+de nem szimulálják a teljes EU-s LOTL és a tagállami listák közzétételi, illetve aláírási infrastruktúráját.
+
+## Felületi tesztek
+
+A Qt6-teszt vizsgálja a folyamatjelzőt, az érvényes, érvénytelen, nem eldönthető és vegyes eredményeket,
+az aláírás nélküli bemenetet, a hibás JSON-t, az eltérő fájllenyomatot, a megszakítást,
+valamint a hiányzó, részleges és ismeretlen jelenlegi PDF-lefedettséget.
+A segédfolyamata mesterséges; a tényleges PDF-aláírások kriptográfiai vizsgálatát a Java-tesztek végzik.
+
+## A vizsgálatok korlátai
+
+Ezek az ellenőrzések nem helyettesítik a teljes javított Okular lefordítását és kézi kipróbálását
+a céldisztribúcióban, és nem tanúsítják minden PDF megfelelő kezelését.
+Az EU-s bizalmi beállításokat, a visszavonási adatok frissességét, a korábbi időpontra
+vonatkozó ellenőrzést és a minősített aláírási státusz értelmezését karban kell tartani és felül kell vizsgálni.
+Hiányzó bizonyítékból megalapozás nélkül nem válhat sikeres vagy érvénytelen eredmény.

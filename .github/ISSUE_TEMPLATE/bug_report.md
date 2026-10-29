@@ -1,19 +1,21 @@
 ---
-name: Bug report
-about: Report a reproducible problem without personal documents
+name: Hibajelentés
+about: Megismételhető hiba bejelentése személyes dokumentumok nélkül
 ---
 
-**Version and environment**
-- Okular version:
-- Engine version / package revision:
-- Distribution:
-- Java version:
+**Verzió és környezet**
 
-**Steps to reproduce**
+- Okular-verzió:
+- Motorverzió / csomagkiadás:
+- Disztribúció:
+- Java-verzió:
 
-**Expected and actual result**
+**A hiba előidézésének lépései**
 
-**Redacted diagnostic information**
+**Elvárt és tényleges eredmény**
 
-Do not attach real signed documents, certificate dumps, validation XML/JSON reports,
-home-directory paths, tokens or personal names. Prefer synthetic test files.
+**Anonimizált diagnosztikai adatok**
+
+Valódi aláírt dokumentumot, tanúsítványdumpot, validálási XML/JSON-jelentést,
+saját könyvtárra mutató személyes elérési utat, hozzáférési tokent vagy személynevet ne csatolj.
+Lehetőleg mesterséges tesztfájlt használj.

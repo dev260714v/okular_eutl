@@ -68,7 +68,7 @@ source=(https://download.kde.org/stable/release-service/$pkgver/src/$_upstream-$
 sha256sums=('f9b39abcb7c6c3ace5d7acf669fa7ed47cf3aa7b932a8b6abe2abbd8075fc9f5'
             'SKIP'
             'f889e24e0754b0d80a6040a14d80d10adbee73c162dcbd0a8257a4b2e161a283'
-            '88c896b87228cc0df9dac5ebf9c4635454a1165dcda0a79d09235f2fb8f0ccdd'
+            '6f66be0e9aa9720f8b440ff80a0d9949aedad3ed3d5a7bf4a1e5cf35f5224175'
             '49ea759a03c74a4fff039dc2a32b881d036b1b784f70439dbe30c5dd49af790a')
 validpgpkeys=(CA262C6C83DE4D2FB28A332A3A6A4DB839EAA6D7  # Albert Astals Cid <aacid@kde.org>
               F23275E4BF10AFC1DF6914A6DBD2CE893E2D1C87  # Christoph Feck <cfeck@kde.org>

@@ -1,46 +1,47 @@
 # Okular EUTL
 
-Local EU trusted-list signature validation integrated into **Okular 26.08.2**,
-using the European Commission's **Digital Signature Services (DSS) 6.5.1**.
+Az **Okular 26.08.2-be integrált, helyben futó EU-s aláírás-ellenőrzés**, az Európai
+Bizottság **Digital Signature Services (DSS) 6.5.1** könyvtárával.
 
-[Magyar leírás](README.hu.md) · [Trust configuration](docs/TRUST.md) · [Privacy](docs/PRIVACY.md) · [Contributing](CONTRIBUTING.md)
+[Bizalmi beállítások](docs/TRUST.md) · [Adatvédelem](docs/PRIVACY.md) · [Közreműködés](CONTRIBUTING.md) · [Változásnapló](CHANGELOG.md)
 
-This is an **experimental, independent Okular patch and local Java helper**.
-It requires rebuilding Okular; it is not a drop-in plugin. The current dialog is in Hungarian.
-It is not an official KDE/European Commission product or a qualified validation service.
+Ez egy **kísérleti, független Okular-javítás és helyi Java ellenőrzőmotor**.
+Használatához újra kell fordítani az Okulart; nem külön bemásolható bővítmény.
+Az ellenőrzőablak és a projekt dokumentációja magyar nyelvű.
+Nem hivatalos KDE- vagy európai bizottsági termék, és nem minősített validálási szolgáltatás.
 
-## Features
+## Funkciók
 
-- Validate PDF/PAdES signatures and timestamps using authenticated EU/national trusted lists.
-- Separate validity from qualification, including qualified signatures and advanced signatures.
-- Green **✓ valid**, red **✗ invalid**, and yellow **⚠ indeterminate** results, per signer and overall.
-- Busy indicator, elapsed time, cancellation and expandable technical details.
-- Toolbar action and **Tools → EU-s aláírás-ellenőrzés…** menu entry.
-- Suppress the generic forms notification when there are only signature fields;
-  preserve real form, integrity, revocation and document-revision warnings.
-- Save JSON and DSS XML reports together with an engine log.
-- Cache trusted-list bytes, issuer certificates and fresh revocation evidence.
-  Recognized signer certificates provide lookup hints for the relevant national lists.
-- Keep the PDF on the local machine. Network access retrieves validation evidence, not the PDF.
+- PDF/PAdES-aláírások és időbélyegek ellenőrzése hitelesített EU-s és tagállami bizalmi listákkal.
+- Külön érvényességi eredmény és minősítés, beleértve a minősített és a fokozott biztonságú aláírásokat.
+- Aláírónkénti és összesített eredmény: zöld **✓ ÉRVÉNYES**, piros **✗ ÉRVÉNYTELEN**, sárga **⚠ NEM ELLENŐRIZHETŐ**.
+- Animált folyamatjelző, eltelt idő, megszakítás és kinyitható technikai részletek.
+- Eszköztárgomb és **Eszközök → EU-s aláírás-ellenőrzés…** menüpont.
+- Az általános űrlapértesítés elhagyása, ha a PDF csak aláírásmezőket tartalmaz.
+  A valódi űrlapokra, sértetlenségre, visszavonásra és dokumentumváltozatokra vonatkozó jelzések megmaradnak.
+- JSON- és DSS XML-jelentések mentése a motor naplójával együtt.
+- Bizalmi listák, kibocsátói tanúsítványok és aktuális visszavonási bizonyítékok gyorsítótárazása.
+  Az ismert aláíró tanúsítványa segít kiválasztani az érintett tagállami listákat.
+- A PDF a számítógépen marad; a hálózati kérések az ellenőrzési bizonyítékokat töltik le.
 
-## Supported configuration
+## Támogatott környezet
 
-| Component | Target |
+| Összetevő | Követelmény |
 |---|---|
-| Desktop | CachyOS / Arch Linux, KDE Plasma, x86_64 |
-| Okular | Exactly 26.08.2; patch and source checksum are version-specific |
-| Java | JDK 17+ for building; Java 17+ for running |
+| Asztali környezet | CachyOS / Arch Linux, KDE Plasma, x86_64 |
+| Okular | Pontosan 26.08.2; a javítás és a forrás ellenőrzőösszege verzióhoz kötött |
+| Java | Fordításhoz JDK 17 vagy újabb; futtatáshoz Java 17 vagy újabb |
 | DSS | 6.5.1 |
-| Input | Saved local PDFs, up to 256 MiB |
+| Bemenet | Lemezre mentett helyi PDF, legfeljebb 256 MiB |
 
-The full desktop integration has been exercised during development on the target setup.
-The public-source checks cover the Java engine and source packaging; they do not certify
-all PDFs, distributions or future Okular versions. Do not treat a successful result as
-proof that every later PDF revision is covered by every signature.
+A teljes asztali integrációt a fejlesztés során a célkörnyezetben kipróbáltuk.
+A nyilvános forrás ellenőrzései a Java-motorra és a csomagkészítésre terjednek ki;
+nem igazolják minden PDF, disztribúció vagy későbbi Okular-verzió megfelelő működését.
+Egy sikeres eredmény önmagában nem jelenti azt, hogy minden aláírás lefedi a PDF összes későbbi változatát.
 
-## Build and install on CachyOS / Arch
+## Fordítás és telepítés CachyOS / Arch Linux alatt
 
-Download or clone this repository and open a terminal in its root directory.
+Töltsd le vagy klónozd ezt a tárolót, és nyiss terminált a gyökérkönyvtárában.
 
 ```sh
 sudo pacman -Syu --needed base-devel cmake maven jdk-openjdk git
@@ -48,134 +49,145 @@ python3 scripts/prepare-source.py
 makepkg -Csi
 ```
 
-Run `makepkg` as your normal user. The package is named `okular-eutl`, provides
-`okular`, and replaces/conflicts with the repository `okular` package.
-The build detects an installed JDK 17+ even if the system default points at an older JRE.
-The first Maven build requires internet access to download dependencies.
+A `makepkg` parancsot normál felhasználóként futtasd. A csomag neve `okular-eutl`,
+biztosítja az `okular` csomagot, és lecseréli a disztribúció `okular` csomagját.
+A fordítás keres egy telepített JDK 17 vagy újabb környezetet akkor is, ha a rendszer
+alapértelmezett Java-környezete egy régebbi JRE. Az első Maven-fordításhoz internetkapcsolat kell a függőségek letöltéséhez.
 
-The official Okular tarball checksum and release signature are verified.
-If the signing key is missing, verify the full fingerprint against the
-[KDE release page](https://kde.org/info/releases-26.08.2/) before importing it.
-The expected release signer fingerprint is:
+A csomagkészítés ellenőrzi a hivatalos Okular-forrásarchívum ellenőrzőösszegét és kiadási aláírását.
+Ha az aláírókulcs hiányzik, importálás előtt vesd össze a teljes ujjlenyomatot a
+[KDE kiadási oldalával](https://kde.org/info/releases-26.08.2/).
+A várt kiadási aláírókulcs ujjlenyomata:
 
 ```text
 D81C0CB38EB725EF6691C385BB463350D6EF31EF
 ```
 
-For example, after verifying that fingerprint:
+Az ujjlenyomat ellenőrzése után például így importálható:
 
 ```sh
 gpg --keyserver hkps://keys.openpgp.org --recv-keys D81C0CB38EB725EF6691C385BB463350D6EF31EF
 makepkg -Csi
 ```
 
-Close all Okular windows after installation and restart the application.
-This custom package requires separate maintenance when upstream Okular changes.
-To return to your distribution's package:
+A telepítés végén zárj be minden Okular-ablakot, majd indítsd újra az alkalmazást.
+Az egyedi csomagot az Okular újabb kiadásaihoz külön karban kell tartani.
+A disztribúció eredeti csomagjára így térhetsz vissza:
 
 ```sh
 sudo pacman -S okular
 ```
 
-## Use
+## Használat
 
-1. Open a saved PDF with no unsaved modifications.
-2. Click **EU-s ellenőrzés** in the toolbar or the signature notification,
-   or use the Tools menu entry.
-3. Wait for the verdict. **Megszakítás** cancels the running operation.
-4. Expand **Részletek megjelenítése** for diagnostics, or choose **Jelentések mentése…**
-   to save reports.
+1. Nyiss meg egy mentett PDF-et, amelyben nincs mentetlen módosítás.
+2. Kattints az eszköztár vagy az aláírásértesítés **EU-s ellenőrzés** gombjára,
+   vagy válaszd az Eszközök menü megfelelő pontját.
+3. Várd meg az eredményt. A **Megszakítás** leállítja a folyamatban lévő ellenőrzést.
+4. A **Részletek megjelenítése** gombbal nyithatók meg a diagnosztikai adatok;
+   a **Jelentések mentése…** gombbal menthetők a jelentések.
 
-Existing customized toolbars may need the action added manually using
-**Settings → Configure Toolbars…**. The action's internal name is `validate_eutl`.
+Korábban testreszabott eszköztár esetén kézzel is hozzá kellhet adni a műveletet:
+**Beállítások → Eszköztárak beállítása…**. A művelet belső azonosítója `validate_eutl`.
 
-Only an all-passed result with at least one valid signature covering the current PDF
-revision is green. Signature validity and current-revision coverage are shown separately.
-Earlier signatures may cover earlier revisions. Extra unsigned bytes or unknown coverage
-make the overall result yellow, without relabelling a valid earlier signature as invalid.
-A failed signature makes the overall result red; otherwise incomplete evidence makes it yellow.
-An unsigned PDF, malformed engine response
-or mismatched file hash never becomes a successful signature result.
+Az összesítés csak akkor zöld, ha minden aláírás ellenőrzése sikeres, és legalább egy
+érvényes aláírás lefedi a jelenlegi PDF-változatot. Az aláírás érvényessége és a jelenlegi
+változat lefedettsége külön jelenik meg. A korábbi aláírások korábbi változatokra is vonatkozhatnak.
+Az aláírás után hozzáadott bájtok vagy az ismeretlen lefedettség sárga összesítést eredményeznek;
+ettől egy korábbi változat érvényes aláírása nem válik érvénytelenné.
+Érvénytelen aláírás esetén az összesítés piros, hiányos bizonyíték esetén egyébként sárga.
+Aláírás nélküli PDF, hibás motorválasz vagy eltérő fájllenyomat nem kaphat sikeres aláírás-ellenőrzési eredményt.
 
-## Caching and native certificate storage
+## Gyorsítótár és natív tanúsítványtárolás
 
-The default evidence cache is `$XDG_CACHE_HOME/okular-eutl/v1`, or
-`~/.cache/okular-eutl/v1` when XDG_CACHE_HOME is unset. The first successful validation
-populates it. Later documents from the same certificate can reuse evidence and national-list
-lookup hints, but **each new document and signature is still verified**.
+A bizonyítékok gyorsítótára alapértelmezetten `$XDG_CACHE_HOME/okular-eutl/v1`,
+az `XDG_CACHE_HOME` hiányában `~/.cache/okular-eutl/v1`. Az első sikeres ellenőrzés
+feltölti a gyorsítótárat. Ugyanazzal a tanúsítvánnyal aláírt későbbi dokumentumoknál
+újra felhasználhatók a bizonyítékok és a tagállami listák keresési segédadatai,
+de **minden új dokumentum és aláírás külön ellenőrzésen megy át**.
 
-- Current trusted-list bytes: up to six hours, bounded by their signed `NextUpdate`.
-- National lists and LOTL: their signatures and trust relationships are checked again on use.
-- Issuer-certificate downloads: up to 30 days; certificate validity is still evaluated by DSS.
-- OCSP/CRL evidence: reused only while sufficiently fresh under the configured DSS policy.
-- Previously valid signer certificates: auxiliary chain-building data, never unconditional trust anchors.
-  Only certificates matching the current document are loaded. Entries expire after 30 days;
-  successful writes prune the oldest entries to at most 256 certificates / 16 MiB and remove orphaned list hints.
+- Aktuális bizalmi listák: legfeljebb hat órán át használhatók újra, az aláírt `NextUpdate` időpontjáig.
+- Tagállami listák és LOTL: az aláírásukat és a bizalmi kapcsolataikat minden használatkor újra ellenőrzi a motor.
+- Letöltött kibocsátói tanúsítványok: legfeljebb 30 napig tárolhatók újrafelhasználásra; érvényességüket továbbra is a DSS értékeli.
+- OCSP/CRL-bizonyítékok: csak a beállított DSS-szabályok szerinti frissességük idején használhatók újra.
+- Korábban érvényes aláírói tanúsítványok: kizárólag a tanúsítványlánc felépítését segítik, nem válnak feltétlen bizalmi ponttá.
+  Csak az aktuális dokumentumhoz pontosan illeszkedő tanúsítványok töltődnek be; 30 nap után nem használhatók újra.
+  Sikeres íráskor a motor a legrégebbi bejegyzések törlésével legfeljebb 256 tanúsítványra és 16 MiB-ra
+  csökkenti a készletet, és törli az árván maradt listakeresési segédadatokat.
 
-This integration does **not** modify Poppler's native NSS database, Firefox's store or
-system trust settings. The native signature panel and the EU validation dialog use
-different verification paths. Importing a certificate into NSS would not preserve its
-EU qualification or eliminate future revocation checks.
+Az integráció nem módosítja a Poppler natív NSS-adatbázisát, a Firefox tanúsítványtárát
+vagy a rendszer bizalmi beállításait. A natív aláíráspanel és az EU-s ellenőrzőablak
+eltérő ellenőrzési folyamatot használ. Egy tanúsítvány NSS-be importálása nem őrizné meg
+annak EU-s minősítését, és nem váltaná ki a későbbi visszavonás-ellenőrzéseket.
 
-Caching reduces repeated work, but does not promise instantaneous or fully offline validation.
-A short-lived OCSP response may need refreshing between documents. Performance counters
-are included in the JSON report. Close Okular before manually removing the cache directory
-if a clean online validation is needed.
+A gyorsítótár csökkenti az ismétlődő munkát, de nem garantál azonnali vagy teljesen hálózat nélküli ellenőrzést.
+Egy rövid élettartamú OCSP-választ két dokumentum között is frissíteni kellhet.
+A JSON-jelentés teljesítményadatokat is tartalmaz. Ha tiszta hálózati ellenőrzést szeretnél,
+a gyorsítótár kézi törlése előtt zárd be az Okulart.
 
-## Engine development and tests
+## A motor fejlesztése és tesztelése
 
 ```sh
 python3 tests/verify-trust.py
 mvn -B -ntp -f backend/pom.xml verify
+python3 tests/engine-cli.py backend/target/okular-eutl-0.1.3.jar
 ```
 
-The public Maven coordinates and Java namespace are `org.okulareutl`; the shaded output is
-`backend/target/okular-eutl-0.1.3.jar`. Generated binaries are not tracked in git.
+A Maven-csoportazonosító és a Java-névtér `org.okulareutl`.
+A függőségeket is tartalmazó kimeneti JAR: `backend/target/okular-eutl-0.1.3.jar`.
+A generált bináris fájlok nem kerülnek a Git-tárolóba.
 
-The unit suite covers trusted-list acceptance, cache expiry/corruption/concurrency,
-certificate-bound lookup hints, bounded non-trusting certificate reuse, network restrictions,
-streaming response caps, current-revision coverage and worker shutdown.
-Offline integration tests generate real signed PDFs, certificates, CRLs and RFC3161 timestamps
-to check valid, tampered, revoked, untrusted-chain, later-revision and repeated-signer cases.
-CI runs these on Java 17 and 27, plus the offscreen Qt6 dialog test documented in [CONTRIBUTING.md](CONTRIBUTING.md).
-See [validation notes](docs/VALIDATION.md) for the limits of these checks.
+Az egységtesztek a bizalmi listák elfogadását, a gyorsítótár lejáratát, sérülését és párhuzamos
+használatát, a tanúsítványhoz kötött keresési segédadatokat, a korlátozott és bizalmi pontot
+nem létrehozó tanúsítvány-újrafelhasználást, a hálózati korlátozásokat, a folyamatos olvasás
+közbeni méretkorlátot, a PDF-lefedettséget és a háttérszálak leállítását ellenőrzik.
+A hálózat nélküli integrációs tesztek valódi aláírt PDF-eket, tanúsítványokat, CRL-eket és
+RFC3161-időbélyegeket generálnak. Ezekkel érvényes, módosított, visszavont, hiányzó bizalmi
+láncú, később módosított és ismétlődő aláírótól származó dokumentumokat vizsgálnak.
+A GitHub automatikus ellenőrzése Java 17 és 27 alatt futtatja a teszteket,
+valamint a [közreműködési útmutatóban](CONTRIBUTING.md) ismertetett, képernyő nélküli Qt6-felülettesztet.
+A vizsgálatok korlátait az [ellenőrzési leírás](docs/VALIDATION.md) részletezi.
 
-To update only the engine of an already installed integration, build it first, then:
+Már telepített integrációnál csak a motor cseréjéhez először fordítsd le az új változatot, majd:
 
 ```sh
 sudo install -m 644 backend/target/okular-eutl-0.1.3.jar /usr/share/okular-eutl/engine.jar
 sudo install -m 755 okular-eutl-engine /usr/bin/okular-eutl-engine
 ```
 
-Manual engine replacement is overwritten by a later package installation.
-After modifying backend, tests or trust data, rerun `scripts/prepare-source.py` before `makepkg`.
+A későbbi csomagtelepítés felülírja a kézzel lecserélt motort.
+A motor, a tesztek vagy a bizalmi adatok módosítása után a `makepkg` előtt
+futtasd újra a `scripts/prepare-source.py` szkriptet. Ez a felület fejlécét is beépíti a telepítendő javításba.
 
-## Limitations
+## Korlátok
 
-- Local saved PDF/PAdES input only; no ASiC/XAdES or standalone CAdES UI.
-- Password-protected PDFs have no password-prompt integration.
-- Five-minute UI timeout; 768 MiB JVM maximum heap.
-- Evidence URLs must use HTTP(S) and resolve entirely to public addresses, including on redirects.
-  Loopback, private, link-local, reserved and non-global addresses are blocked when connecting.
-  Up to five redirects are allowed; HTTPS downgrades and ambiguous POST redirects are rejected.
-  System proxies are deliberately not used, as remote DNS resolution could bypass these checks.
-- Response caps apply while reading decompressed bytes: 64 MiB for trusted lists/CRLs,
-  1 MiB for AIA certificates/OCSP. Oversized or blocked evidence remains unavailable;
-  the validator must still justify any validity decision from other authenticated evidence.
-- At most four trusted-list tasks run concurrently.
-- No promise of validation when current trust or revocation evidence is unavailable.
-- Some detailed reasons retain DSS's original terminology.
-- DSS's filesystem revocation-cache implementation is documented upstream as experimental.
-- Trust anchors and their official publication must be maintained as EU material changes.
+- Csak lemezre mentett helyi PDF/PAdES-fájlok; nincs ASiC/XAdES- vagy külön CAdES-felület.
+- Titkosított PDF-ekhez nincs beépített jelszóbekérés.
+- A felület öt perc után megszakítja az ellenőrzést; a JVM memóriakerete legfeljebb 768 MiB.
+- A bizonyítékok címeinek HTTP(S)-t kell használniuk, és átirányításkor is kizárólag nyilvános címekre szabad feloldódniuk.
+  A motor kapcsolódáskor tiltja a visszacsatolási, magán-, helyi kapcsolati, fenntartott és nem globális címeket.
+  Legfeljebb öt átirányítás engedélyezett; HTTPS-ről HTTP-re visszalépés és nem egyértelmű POST-átirányítás nem.
+  Rendszerszintű proxyt nem használ, mert a távoli névfeloldás megkerülhetné ezeket az ellenőrzéseket.
+- A válaszméretkorlát a kitömörített adatok olvasása közben is érvényes:
+  bizalmi listánál és CRL-nél 64 MiB, AIA-tanúsítványnál és OCSP-válasznál 1 MiB.
+  A túl nagy vagy tiltott bizonyíték nem használható fel; az érvényességi eredményt ilyenkor
+  is más hitelesített bizonyítékoknak kell megalapozniuk.
+- Legfeljebb négy bizalmilista-feladat fut párhuzamosan.
+- Aktuális bizalmi vagy visszavonási bizonyíték hiányában az ellenőrzés sikere nem garantálható.
+- Egyes részletes indokok a DSS eredeti szakkifejezéseivel jelennek meg.
+- A DSS saját, fájlrendszerben tárolt visszavonási gyorsítótárát annak fejlesztői kísérletiként írják le.
+- Az EU-s aláírási adatok változásakor a bizalmi pontokat és hivatalos közzétételüket is karban kell tartani.
 
-## License and upstream
+## Licenc és eredeti projektek
 
-New integration code: **GPL-2.0-or-later**. See [LICENSE](LICENSE) and
-[third-party notices](THIRD_PARTY_NOTICES.md).
+Az új integrációs kód licence: **GPL-2.0-or-later**. Az eredeti licencszöveg a
+[LICENSE](LICENSE) fájlban, az összetevőkre vonatkozó magyar tájékoztatás a
+[külső összetevők leírásában](THIRD_PARTY_NOTICES.md) található.
+A licenc eredeti szövege, a szerzői jogi nyilatkozatok, a műszaki azonosítók és a komponensek nevei eredeti alakjukban szerepelnek.
 
-- [Okular source](https://invent.kde.org/graphics/okular/-/tree/v26.08.2)
-- [DSS source](https://github.com/esig/dss/tree/6.5.1)
-- [DSS documentation](https://ec.europa.eu/digital-building-blocks/DSS/webapp-demo/doc/dss-documentation.html)
+- [Az Okular forráskódja](https://invent.kde.org/graphics/okular/-/tree/v26.08.2)
+- [A DSS forráskódja](https://github.com/esig/dss/tree/6.5.1)
+- [A DSS külső dokumentációja](https://ec.europa.eu/digital-building-blocks/DSS/webapp-demo/doc/dss-documentation.html)
 
-Bug reports and pull requests should contain only synthetic or carefully redacted data.
-Do not upload production signed documents or validation reports to public issues.
+Hibajegyhez és módosítási javaslathoz csak mesterséges tesztadatot vagy gondosan anonimizált
+adatot csatolj. Valódi aláírt dokumentumot vagy teljes validálási jelentést ne tölts fel nyilvános hibajegyhez.

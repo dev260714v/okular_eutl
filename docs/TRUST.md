@@ -1,30 +1,39 @@
-# Trust configuration
+# Bizalmi beállítások
 
-DSS starts with the public LOTL-signing certificates in `trust/lotl-anchors.pem`.
-The permitted SHA-256 fingerprints are pinned in `trust/allowed-sha256.txt` and checked
-by `tests/verify-trust.py`.
+A DSS a `trust/lotl-anchors.pem` fájlban található nyilvános LOTL-aláíró tanúsítványokból indul ki.
+A megengedett SHA-256-ujjlenyomatokat a `trust/allowed-sha256.txt` rögzíti,
+egyezésüket a `tests/verify-trust.py` ellenőrzi.
 
-The official publication URL is in `trust/oj-url.txt`:
-<https://eur-lex.europa.eu/eli/C/2026/1944/oj>.
-The included certificates were checked against the published fingerprints during development.
-They are not the certificates of users, municipal organizations or production test signers.
+A hivatalos közzététel címét a `trust/oj-url.txt` tartalmazza:
+[az Európai Unió Hivatalos Lapjának C/2026/1944. számú közleménye](https://eur-lex.europa.eu/eli/C/2026/1944/oj).
+A mellékelt tanúsítványokat a fejlesztés során összevetettük a közzétett ujjlenyomatokkal.
+Ezek nem felhasználók, önkormányzati szervezetek vagy valódi üzemi tesztaláírók tanúsítványai.
 
-The current EU LOTL is authenticated from those anchors. DSS follows its pivot mechanism
-and authenticates the referenced national trusted lists. A list is eligible for synchronization
-only when its download succeeded, its signature is valid and its issue/next-update interval
-is current. Both DSS cache states `DESYNCHRONIZED` and `SYNCHRONIZED` represent usable
-successful download data at different stages; neither bypasses those security checks.
+## A bizalmi listák hitelesítése
 
-Archived final UK list bytes can be cached, but an expired/non-current list does not
-become a current trusted source. Known-signer lookup hints only select URLs already
-advertised by the authenticated LOTL. They do not add new independent trust anchors.
-If selected lists cannot establish a conclusive result, the engine retries a full search.
+A motor ezekből a bizalmi pontokból hitelesíti az aktuális EU-s LOTL-t, vagyis a tagállami
+bizalmi listák jegyzékét. A DSS követi a LOTL aláírókulcsainak átvezetését szolgáló
+mechanizmust, és hitelesíti a hivatkozott tagállami bizalmi listákat.
+Egy lista csak sikeres letöltés, érvényes aláírás és aktuális kiadási/következő frissítési
+időszak esetén szinkronizálható. A DSS `DESYNCHRONIZED` és `SYNCHRONIZED`
+gyorsítótár-állapota eltérő feldolgozási szakaszban jelzi a sikeresen letöltött adatot;
+egyik sem kerüli meg ezeket a biztonsági ellenőrzéseket.
 
-Issuer and previously valid signer certificates are auxiliary evidence. Revocation,
-validity periods and EU qualification are evaluated by DSS for the new document.
-Cached certificates are never promoted to the trusted-source collection.
+Az Egyesült Királyság utolsó, archivált listájának bájtjai tárolhatók a gyorsítótárban,
+de lejárt vagy nem aktuális lista nem válik aktuális bizalmi forrássá.
+Az ismert aláírók keresési segédadatai csak a hitelesített LOTL-ben már szereplő címek
+közül választanak; nem hoznak létre új, önálló bizalmi pontokat.
+Ha a kiválasztott listák alapján nem születik egyértelmű eredmény, a motor teljes listakereséssel próbálkozik újra.
 
-Trust configuration requires maintenance. When official LOTL signing material changes,
-verify the new official publication and fingerprints before changing these files, then
-regenerate packaging checksums. Never copy a document's signing certificate into the
-LOTL-anchor file merely to make a validation pass.
+## Tanúsítványok és karbantartás
+
+A kibocsátói és a korábban érvényes aláírói tanúsítványok segédbizonyítékok.
+A visszavonási állapotot, az érvényességi időszakokat és az EU-s minősítést a DSS
+minden új dokumentumnál értékeli. A gyorsítótárazott tanúsítványok soha nem kerülnek
+át a bizalmi források gyűjteményébe.
+
+A bizalmi beállításokat karban kell tartani. A LOTL hivatalos aláírói adatainak változásakor
+előbb ellenőrizd az új hivatalos közzétételt és ujjlenyomatokat, és csak ezután módosítsd
+ezeket a fájlokat, majd generáld újra a csomag ellenőrzőösszegeit.
+Egy dokumentum aláírói tanúsítványát soha ne másold a LOTL-bizalmi fájlba pusztán azért,
+hogy az ellenőrzés sikeres legyen.
