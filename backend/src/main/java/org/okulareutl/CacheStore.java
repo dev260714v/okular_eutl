@@ -23,6 +23,9 @@ final class CacheStore {
     static final Duration LIST_TTL = Duration.ofHours(6);
     static final Duration CERT_TTL = Duration.ofDays(30);
     static final long MAX_BYTES = 64L * 1024 * 1024;
+    static final int MAX_SIGNERS = 256;
+    static final long MAX_SIGNER_BYTES = 16L * 1024 * 1024;
+    static final long MAX_CERT_BYTES = 1024 * 1024;
     private static final ConcurrentHashMap<String,Object> LOCKS = new ConcurrentHashMap<>();
     final Path root;
     final AtomicInteger hits = new AtomicInteger(), downloads = new AtomicInteger();
@@ -81,7 +84,7 @@ final class CacheStore {
     static boolean fresh(Path file, Duration ttl, boolean list, boolean archived) {
         try {
             long age = System.currentTimeMillis() - Files.getLastModifiedTime(file).toMillis();
-            if (Files.isSymbolicLink(file) || age < 0 || age >= ttl.toMillis() || Files.size(file) > MAX_BYTES) return false;
+            if (Files.isSymbolicLink(file) || age < 0 || age >= ttl.toMillis() || Files.size(file) > (list ? MAX_BYTES : MAX_CERT_BYTES)) return false;
             byte[] bytes = Files.readAllBytes(file);
             if (list) return listWindow(bytes, Instant.now(), archived);
             return !CertificateFactory.getInstance("X.509").generateCertificates(new ByteArrayInputStream(bytes)).isEmpty();
@@ -105,6 +108,7 @@ final class CacheStore {
                     downloads.incrementAndGet();
                     byte[] bytes=upstream.get(url);
                     if (bytes == null || bytes.length==0) throw new DSSException("Üres hálózati válasz: " + url);
+                    if (bytes.length > (list ? MAX_BYTES : MAX_CERT_BYTES)) throw new DSSException("A hálózati válasz túllépte a méretkorlátot");
                     // Invalid evidence may still be returned to DSS for diagnosis, but is not reusable.
                     boolean cacheable = list ? listWindow(bytes, Instant.now(), archived) : isCertificate(bytes);
                     if (cacheable && bytes.length <= MAX_BYTES) atomicWrite(file, bytes);
@@ -126,26 +130,74 @@ final class CacheStore {
         try { return !CertificateFactory.getInstance("X.509").generateCertificates(new ByteArrayInputStream(bytes)).isEmpty(); }
         catch (Exception e) { return false; }
     }
-    CommonCertificateSource signerCertificates() throws IOException {
+    CommonCertificateSource signerCertificates(List<CertificateToken> signers) throws IOException {
         var source = new CommonCertificateSource();
         Path directory=privateDirectory(root.resolve("validated-signers"));
-        try (var paths = Files.newDirectoryStream(directory,"*.cer")) {
-            for (Path p : paths) {
-                if (Files.isSymbolicLink(p) || Files.size(p)>1024*1024) continue;
+        // Exact lookups only: opening one document must not parse every past signer's certificate.
+        for (var signer : signers) {
+            if (signer == null) continue;
+            Path p = directory.resolve(digest(signer.getEncoded()) + ".cer");
+            try {
+                long age = System.currentTimeMillis() - Files.getLastModifiedTime(p).toMillis();
+                if (Files.isSymbolicLink(p) || age < 0 || age >= CERT_TTL.toMillis() || Files.size(p)>MAX_CERT_BYTES) continue;
                 try {
                     byte[] bytes=Files.readAllBytes(p);
                     if (!p.getFileName().toString().equals(digest(bytes)+".cer")) continue;
                     var cert=(X509Certificate)CertificateFactory.getInstance("X.509").generateCertificate(new ByteArrayInputStream(bytes));
                     source.addCertificate(new CertificateToken(cert));
                 } catch (Exception ignored) { /* malformed cache entries cannot establish trust */ }
-            }
+            } catch (NoSuchFileException ignored) { /* cache miss */ }
         }
         return source; // Adjunct certificates only, never CommonTrustedCertificateSource.
     }
     void rememberSigner(CertificateToken token) throws Exception {
         if (token == null) return;
         byte[] bytes=token.getEncoded();
-        atomicWrite(privateDirectory(root.resolve("validated-signers")).resolve(digest(bytes)+".cer"),bytes);
+        if (bytes.length > MAX_CERT_BYTES) return;
+        Path directory = privateDirectory(root.resolve("validated-signers"));
+        synchronized (LOCKS.computeIfAbsent(directory.toString(), k -> new Object())) {
+            try (var channel = FileChannel.open(directory.resolve(".prune.lock"), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+                 var lock = channel.lock()) {
+                atomicWrite(directory.resolve(digest(bytes)+".cer"),bytes);
+                pruneSigners(directory);
+            }
+        }
+    }
+
+    static void pruneSigners(Path directory) throws IOException {
+        var entries = new ArrayList<Path>();
+        long now = System.currentTimeMillis(), total = 0;
+        try (var paths = Files.newDirectoryStream(directory, "*.cer")) {
+            for (Path p : paths) {
+                long age = now - Files.getLastModifiedTime(p, LinkOption.NOFOLLOW_LINKS).toMillis();
+                if (Files.isSymbolicLink(p) || age < 0 || age >= CERT_TTL.toMillis() || Files.size(p) > MAX_CERT_BYTES) {
+                    removeSigner(p);
+                } else { entries.add(p); total += Files.size(p); }
+            }
+        }
+        entries.sort(Comparator.comparingLong(p -> {
+            try { return Files.getLastModifiedTime(p).toMillis(); }
+            catch (IOException e) { return Long.MIN_VALUE; }
+        }));
+        int count = entries.size();
+        for (Path p : entries) {
+            if (count <= MAX_SIGNERS && total <= MAX_SIGNER_BYTES) break;
+            total -= Files.size(p); count--; removeSigner(p);
+        }
+        // Hints without a live certificate cannot grow indefinitely either.
+        try (var paths = Files.newDirectoryStream(directory, "*.lists.json")) {
+            for (Path p : paths) {
+                Path cert = directory.resolve(p.getFileName().toString().replace(".lists.json", ".cer"));
+                if (Files.isSymbolicLink(p) || !Files.exists(cert, LinkOption.NOFOLLOW_LINKS)
+                        || now - Files.getLastModifiedTime(p, LinkOption.NOFOLLOW_LINKS).toMillis() >= LIST_TTL.toMillis())
+                    Files.deleteIfExists(p);
+            }
+        }
+    }
+
+    static void removeSigner(Path p) throws IOException {
+        Files.deleteIfExists(p);
+        Files.deleteIfExists(p.resolveSibling(p.getFileName().toString().replace(".cer", ".lists.json")));
     }
 
     Set<String> listsFor(List<CertificateToken> signers) throws IOException {

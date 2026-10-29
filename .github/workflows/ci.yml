@@ -1,0 +1,54 @@
+name: Source checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  engine:
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        java: ['17', '27']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+      - name: Audit public source
+        run: python3 scripts/audit-public.py
+      - name: Verify trust-anchor fingerprints
+        run: python3 tests/verify-trust.py
+      - name: Build engine and run tests
+        run: mvn -B -ntp -f backend/pom.xml verify
+      - name: Exercise the shaded engine process offline
+        run: python3 tests/engine-cli.py backend/target/okular-eutl-0.1.3.jar
+      - name: Check reproducible packaging input
+        shell: bash
+        run: |
+          bash -n PKGBUILD
+          sh -n okular-eutl-engine
+          python3 scripts/prepare-source.py
+          sha256sum engine-source.tar.gz > /tmp/first-source.sha256
+          python3 scripts/prepare-source.py
+          sha256sum -c /tmp/first-source.sha256
+          git diff --exit-code -- PKGBUILD okular-eutl.patch
+  dialog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Qt6 test dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends g++ pkg-config qt6-base-dev
+      - name: Compile and exercise the dialog offscreen
+        run: |
+          c++ -std=c++17 -fPIC -I. tests/ui-smoke.cpp $(pkg-config --cflags --libs Qt6Widgets) -o /tmp/okular-eutl-ui-test
+          QT_QPA_PLATFORM=offscreen /tmp/okular-eutl-ui-test

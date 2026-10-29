@@ -89,8 +89,12 @@ sudo pacman -S okular
 Existing customized toolbars may need the action added manually using
 **Settings → Configure Toolbars…**. The action's internal name is `validate_eutl`.
 
-Only an all-passed result is green. A failed signature makes the overall result red;
-otherwise incomplete evidence makes it yellow. An unsigned PDF, malformed engine response
+Only an all-passed result with at least one valid signature covering the current PDF
+revision is green. Signature validity and current-revision coverage are shown separately.
+Earlier signatures may cover earlier revisions. Extra unsigned bytes or unknown coverage
+make the overall result yellow, without relabelling a valid earlier signature as invalid.
+A failed signature makes the overall result red; otherwise incomplete evidence makes it yellow.
+An unsigned PDF, malformed engine response
 or mismatched file hash never becomes a successful signature result.
 
 ## Caching and native certificate storage
@@ -105,6 +109,8 @@ lookup hints, but **each new document and signature is still verified**.
 - Issuer-certificate downloads: up to 30 days; certificate validity is still evaluated by DSS.
 - OCSP/CRL evidence: reused only while sufficiently fresh under the configured DSS policy.
 - Previously valid signer certificates: auxiliary chain-building data, never unconditional trust anchors.
+  Only certificates matching the current document are loaded. Entries expire after 30 days;
+  successful writes prune the oldest entries to at most 256 certificates / 16 MiB and remove orphaned list hints.
 
 This integration does **not** modify Poppler's native NSS database, Firefox's store or
 system trust settings. The native signature panel and the EU validation dialog use
@@ -124,17 +130,20 @@ mvn -B -ntp -f backend/pom.xml verify
 ```
 
 The public Maven coordinates and Java namespace are `org.okulareutl`; the shaded output is
-`backend/target/okular-eutl-0.1.2.jar`. Generated binaries are not tracked in git.
+`backend/target/okular-eutl-0.1.3.jar`. Generated binaries are not tracked in git.
 
 The unit suite covers trusted-list acceptance, cache expiry/corruption/concurrency,
-certificate-bound lookup hints, non-trusting certificate reuse and worker shutdown.
-A synthetic Qt6 dialog smoke test is documented in [CONTRIBUTING.md](CONTRIBUTING.md).
+certificate-bound lookup hints, bounded non-trusting certificate reuse, network restrictions,
+streaming response caps, current-revision coverage and worker shutdown.
+Offline integration tests generate real signed PDFs, certificates, CRLs and RFC3161 timestamps
+to check valid, tampered, revoked, untrusted-chain, later-revision and repeated-signer cases.
+CI runs these on Java 17 and 27, plus the offscreen Qt6 dialog test documented in [CONTRIBUTING.md](CONTRIBUTING.md).
 See [validation notes](docs/VALIDATION.md) for the limits of these checks.
 
 To update only the engine of an already installed integration, build it first, then:
 
 ```sh
-sudo install -m 644 backend/target/okular-eutl-0.1.2.jar /usr/share/okular-eutl/engine.jar
+sudo install -m 644 backend/target/okular-eutl-0.1.3.jar /usr/share/okular-eutl/engine.jar
 sudo install -m 755 okular-eutl-engine /usr/bin/okular-eutl-engine
 ```
 
@@ -146,6 +155,14 @@ After modifying backend, tests or trust data, rerun `scripts/prepare-source.py` 
 - Local saved PDF/PAdES input only; no ASiC/XAdES or standalone CAdES UI.
 - Password-protected PDFs have no password-prompt integration.
 - Five-minute UI timeout; 768 MiB JVM maximum heap.
+- Evidence URLs must use HTTP(S) and resolve entirely to public addresses, including on redirects.
+  Loopback, private, link-local, reserved and non-global addresses are blocked when connecting.
+  Up to five redirects are allowed; HTTPS downgrades and ambiguous POST redirects are rejected.
+  System proxies are deliberately not used, as remote DNS resolution could bypass these checks.
+- Response caps apply while reading decompressed bytes: 64 MiB for trusted lists/CRLs,
+  1 MiB for AIA certificates/OCSP. Oversized or blocked evidence remains unavailable;
+  the validator must still justify any validity decision from other authenticated evidence.
+- At most four trusted-list tasks run concurrently.
 - No promise of validation when current trust or revocation evidence is unavailable.
 - Some detailed reasons retain DSS's original terminology.
 - DSS's filesystem revocation-cache implementation is documented upstream as experimental.

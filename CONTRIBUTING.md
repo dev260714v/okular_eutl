@@ -7,7 +7,8 @@ real signers' certificate dumps, private keys, validation reports or personal ma
 2. Run `python3 tests/verify-trust.py`.
 3. Run `mvn -B -ntp -f backend/pom.xml verify` with a JDK 17 or later.
 4. After engine, test or trust changes, run `python3 scripts/prepare-source.py`.
-5. If modifying `eutldialog.h`, update the matching new-file section in `okular-eutl.patch`.
+5. `scripts/prepare-source.py` also synchronizes the canonical `eutldialog.h` into
+   `okular-eutl.patch`. Commit both the generated patch and PKGBUILD checksums.
    Test that the patch still applies to the exact supported upstream source.
 
 Changes to trust-list acceptance, revocation freshness, file hashes or verdict aggregation
@@ -20,6 +21,12 @@ UI-only tests can be compiled with Qt6 development packages:
 c++ -std=c++17 -fPIC -I. tests/ui-smoke.cpp $(pkg-config --cflags --libs Qt6Widgets) -o /tmp/okular-eutl-ui-test
 QT_QPA_PLATFORM=offscreen /tmp/okular-eutl-ui-test
 ```
+
+CI runs the Java suite on JDK 17 and 27 and the Qt6 test offscreen. The Java integration
+suite generates all test keys, certificates, CRLs, RFC3161 timestamps and signed PDFs
+at runtime. Its synthetic test CA never becomes an application trust anchor.
+The transport tests use an injected DNS/address policy for their local HTTP fixture;
+that policy cannot be enabled through runtime configuration.
 
 The Java tests and offscreen dialog tests do not replace a full patched-Okular build
 and manual desktop test. Describe the checks you actually ran in the pull request.

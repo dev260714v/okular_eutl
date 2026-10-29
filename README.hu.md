@@ -53,6 +53,11 @@ Ha egy testreszabott eszköztáron nem látszik a gomb:
 A részletes adatok a **Részletek megjelenítése**, a jelentések a **Jelentések mentése…**
 gombbal érhetők el.
 
+Az összesítés csak akkor zöld, ha minden aláírás érvényes, és legalább egy érvényes
+aláírás lefedi a jelenlegi PDF-változatot. A korábbi változatra vonatkozó aláírás
+érvényes maradhat, de ha a jelenlegi fájl lefedettsége nem igazolt, az összesítés
+sárga figyelmeztetést ad. A lefedettség aláírónként is látható.
+
 ## Gyorsítótár és tanúsítványok
 
 A gyorsítótár alaphelye `~/.cache/okular-eutl/v1`; az `XDG_CACHE_HOME` beállítást
@@ -67,6 +72,16 @@ ellenőrzőablak ezért eltérő eredményt is mutathat.
 
 Hiányzó vagy lejárt bizonyíték esetén hálózati lekérésre lehet szükség.
 Az ellenőrzés nem feltétlenül azonnali, és nincs garantált másodperces futási idő.
+Csak a megnyitott dokumentumhoz tartozó mentett aláírói tanúsítványokat tölti be.
+Ezek legfeljebb 30 napig használhatók újra; sikeres mentéskor a tárolt készletet
+legfeljebb 256 tanúsítványra és 16 MiB-ra csökkenti, a legrégebbiek törlésével.
+
+A hálózati céloknak nyilvános HTTP/HTTPS-címeknek kell lenniük. A belső, helyi és
+fenntartott címeket a kapcsolat létrehozásakor is tiltja. Legfeljebb öt átirányítás
+engedélyezett; HTTPS-ről HTTP-re visszalépés nincs. Rendszerszintű proxyt nem használ.
+A válaszméretet olvasás és kitömörítés közben korlátozza: bizalmi listánál és CRL-nél
+64 MiB, kibocsátói tanúsítványnál és OCSP-válasznál 1 MiB. A tiltott vagy túl nagy
+bizonyíték nem használható fel; az eredmény ilyenkor hiányos lehet.
 
 ## Korlátok és fejlesztés
 
@@ -81,6 +96,9 @@ mvn -B -ntp -f backend/pom.xml verify
 
 A részletes fordítási, motorfrissítési és tesztelési útmutató az [angol README-ben](README.md)
 és a [CONTRIBUTING.md](CONTRIBUTING.md) fájlban található.
+Az automatikus GitHub-ellenőrzés Java 17 és 27 alatt futtatja a teszteket, valamint
+képernyő nélküli Qt6-felülettesztet végez. A PDF-es integrációs tesztek futás közben
+generált kulcsokat, tanúsítványokat, visszavonási listákat és időbélyegeket használnak.
 
 Valódi aláírt dokumentumot, tanúsítványdumpot, személyes adatot vagy teljes
 validálási jelentést ne csatolj nyilvános hibajegyhez.

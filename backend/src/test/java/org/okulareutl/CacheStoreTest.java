@@ -62,7 +62,7 @@ class CacheStoreTest {
         assertArrayEquals(new byte[]{1},loader.post(URL,new byte[]{1}));assertArrayEquals(new byte[]{2},loader.post(URL,new byte[]{2}));assertEquals(2,remote.posts.get());
     }
     @Test void cachedCertificatesDoNotBecomeTrustAnchors() throws Exception {
-        assertFalse(new CacheStore(root).signerCertificates().getCertificateSourceType().isTrusted());
+        assertFalse(new CacheStore(root).signerCertificates(List.of()).getCertificateSourceType().isTrusted());
     }
     @Test void parallelConsumersReuseAtomicCacheEntry() throws Exception {
         var remote=new Remote();var a=new CacheStore(root).new Loader(remote,"lists",true);var b=new CacheStore(root).new Loader(remote,"lists",true);
@@ -76,7 +76,7 @@ class CacheStoreTest {
         try(var input=Files.newInputStream(Path.of("..","trust","lotl-anchors.pem"))) {
             var cert=(java.security.cert.X509Certificate)factory.generateCertificates(input).iterator().next();
             new CacheStore(root).rememberSigner(new eu.europa.esig.dss.model.x509.CertificateToken(cert));
-            var reused=new CacheStore(root).signerCertificates();
+            var reused=new CacheStore(root).signerCertificates(List.of(new eu.europa.esig.dss.model.x509.CertificateToken(cert)));
             assertEquals(1,reused.getNumberOfCertificates());assertFalse(reused.getCertificateSourceType().isTrusted());
         }
     }
@@ -128,5 +128,39 @@ class CacheStoreTest {
         var signers=fixtureSigners();var store=new CacheStore(root);store.rememberLists(signers.get(0),Set.of("https://example.invalid/list"));
         try(var paths=Files.newDirectoryStream(root.resolve("validated-signers"),"*.lists.json")) { for(var path:paths)Files.writeString(path,"bad-json"); }
         assertTrue(store.listsFor(List.of(signers.get(0))).isEmpty());
+    }
+    @Test void unrelatedCertificatesAreNotLoaded() throws Exception {
+        var signers=fixtureSigners();var store=new CacheStore(root);
+        for(var signer:signers)store.rememberSigner(signer);
+        assertEquals(0,store.signerCertificates(List.of()).getNumberOfCertificates());
+        assertEquals(1,store.signerCertificates(List.of(signers.get(0))).getNumberOfCertificates());
+    }
+    @Test void expiredSignerIsNotLoadedAndIsPrunedOnWrite() throws Exception {
+        var signers=fixtureSigners();var store=new CacheStore(root);var old=signers.get(0);
+        store.rememberSigner(old);store.rememberLists(old,Set.of(URL));
+        Path cert=root.resolve("validated-signers/"+CacheStore.digest(old.getEncoded())+".cer");
+        Files.setLastModifiedTime(cert,FileTime.from(Instant.now().minus(Duration.ofDays(31))));
+        assertEquals(0,store.signerCertificates(List.of(old)).getNumberOfCertificates());
+        store.rememberSigner(signers.get(1));assertFalse(Files.exists(cert));
+        assertFalse(Files.exists(cert.resolveSibling(cert.getFileName().toString().replace(".cer",".lists.json"))));
+    }
+    @Test void pruneEnforcesSignerCountLimitAndRemovesOrphanHints() throws Exception {
+        Path dir=CacheStore.privateDirectory(root.resolve("validated-signers"));
+        for(int i=0;i<CacheStore.MAX_SIGNERS+3;i++)Files.write(dir.resolve(i+".cer"),new byte[]{1});
+        Files.writeString(dir.resolve("orphan.lists.json"),"[]");
+        CacheStore.pruneSigners(dir);
+        try(var paths=Files.newDirectoryStream(dir,"*.cer")) { int count=0;for(var p:paths)count++;assertEquals(CacheStore.MAX_SIGNERS,count); }
+        assertFalse(Files.exists(dir.resolve("orphan.lists.json")));
+    }
+    @Test void pruneEnforcesTotalSignerByteLimit() throws Exception {
+        Path dir=CacheStore.privateDirectory(root.resolve("validated-signers"));
+        for(int i=0;i<18;i++)Files.write(dir.resolve(i+".cer"),new byte[(int)CacheStore.MAX_CERT_BYTES]);
+        CacheStore.pruneSigners(dir);
+        try(var paths=Files.newDirectoryStream(dir,"*.cer")) { long size=0;for(var p:paths)size+=Files.size(p);assertTrue(size<=CacheStore.MAX_SIGNER_BYTES); }
+    }
+    @Test void oversizedResponseCannotBeReturnedOrCached() throws Exception {
+        var remote=new Remote();remote.value=new byte[(int)CacheStore.MAX_BYTES+1];
+        assertThrows(DSSException.class,()->new CacheStore(root).new Loader(remote,"lists",true).get(URL));
+        assertFalse(Files.exists(cachedFile()));
     }
 }

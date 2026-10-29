@@ -9,7 +9,6 @@ import eu.europa.esig.dss.model.tsl.*;
 import eu.europa.esig.dss.model.x509.CertificateToken;
 import eu.europa.esig.dss.service.crl.OnlineCRLSource;
 import eu.europa.esig.dss.service.ocsp.OnlineOCSPSource;
-import eu.europa.esig.dss.service.http.commons.CommonsDataLoader;
 import eu.europa.esig.dss.service.http.commons.FileCacheDataLoader;
 import eu.europa.esig.dss.spi.client.http.Protocol;
 import eu.europa.esig.dss.spi.validation.CommonCertificateVerifier;
@@ -53,10 +52,11 @@ public final class Main {
         long startedNanos = System.nanoTime();
         Map<String,Object> result = new LinkedHashMap<>();
         result.put("schema", 1);
-        result.put("engine", "DSS 6.5.1 / Okular EUTL 0.1.2");
+        result.put("engine", "DSS 6.5.1 / Okular EUTL 0.1.3");
         result.put("validationTime", Instant.now().toString());
         result.put("status", "ERROR");
         result.put("signatures", List.of());
+        result.put("documentCoverage", Map.of("status", "UNKNOWN", "coveringSignatureIds", List.of()));
         try {
             if (!Files.isRegularFile(input) || Files.size(input) > 256L * 1024 * 1024)
                 throw new IllegalArgumentException("Hiányzó vagy 256 MiB-nál nagyobb PDF");
@@ -64,6 +64,7 @@ public final class Main {
             if (bytes.length < 5 || !new String(bytes, 0, 5, java.nio.charset.StandardCharsets.US_ASCII).equals("%PDF-"))
                 throw new IllegalArgumentException("Nem támogatott PDF-fejléc");
             result.put("sha256", HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes)));
+            result.put("fileSize", bytes.length);
             var validator = SignedDocumentValidator.fromDocument(new FileDocument(input.toFile()));
             validator.setCertificateVerifier(new CommonCertificateVerifier());
             var probedSignatures = validator.getSignatures();
@@ -105,12 +106,7 @@ public final class Main {
         if (!oj.startsWith("https://eur-lex.europa.eu/"))
             throw new IllegalStateException("Az OJ hivatkozásnak hivatalos EUR-Lex HTTPS URL-nek kell lennie");
 
-        CommonsDataLoader http = new CommonsDataLoader();
-        http.setUseSystemProperties(true);
-        http.setTimeoutConnection(15000);
-        http.setTimeoutConnectionRequest(15000);
-        http.setTimeoutResponse(20000);
-        http.setTimeoutSocket(20000);
+        var http = new SafeDataLoader(CacheStore.MAX_BYTES);
         CacheStore cache = new CacheStore(CacheStore.defaultPath());
         var online = cache.new Loader(http, "trusted-lists", true);
         FileCacheDataLoader offline = new FileCacheDataLoader();
@@ -177,21 +173,17 @@ public final class Main {
         cachedCrl.setDefaultNextUpdateDelay(300L);
         cachedCrl.setMaxNextUpdateDelay(21600L);
         verifier.setCrlSource(cachedCrl);
-        var adjunct = cache.signerCertificates();
+        var adjunct = cache.signerCertificates(probedSigners);
         verifier.setAdjunctCertSources(adjunct);
         cacheInfo.put("reusedSignerCertificates",adjunct.getNumberOfCertificates());
-        var ocsp = new eu.europa.esig.dss.service.http.commons.OCSPDataLoader();
-        ocsp.setUseSystemProperties(true);
-        ocsp.setTimeoutConnection(15000);
-        ocsp.setTimeoutConnectionRequest(15000);
-        ocsp.setTimeoutResponse(20000);
-        ocsp.setTimeoutSocket(20000);
+        var ocsp = new SafeDataLoader(1024 * 1024);
+        ocsp.setContentType("application/ocsp-request");
         var cachedOcsp = new eu.europa.esig.dss.service.ocsp.FileCacheOCSPSource(new OnlineOCSPSource(ocsp));
         cachedOcsp.setFileCacheDirectory(CacheStore.privateDirectory(cache.root.resolve("ocsp")).toFile());
         cachedOcsp.setDefaultNextUpdateDelay(300L);
         cachedOcsp.setMaxNextUpdateDelay(21600L);
         verifier.setOcspSource(cachedOcsp);
-        var aia = new DefaultAIASource(cache.new Loader(http,"issuer-certificates",false));
+        var aia = new DefaultAIASource(cache.new Loader(new SafeDataLoader(CacheStore.MAX_CERT_BYTES),"issuer-certificates",false));
         aia.setAcceptedProtocols(List.of(Protocol.HTTP, Protocol.HTTPS));
         verifier.setAIASource(aia);
         validator.setCertificateVerifier(verifier);
@@ -210,6 +202,24 @@ public final class Main {
             throw new RetryAllLists();
         Set<String> usedLists = new HashSet<>();
         for (var list : reports.getDiagnosticData().getTrustedLists()) usedLists.add(list.getUrl());
+        var signatures = signatureResults(reports, ((Number)result.get("fileSize")).longValue());
+        int savedSigners = 0;
+        for (var signature : validator.getSignatures()) {
+            if (eu.europa.esig.dss.enumerations.Indication.TOTAL_PASSED.equals(simple.getIndication(signature.getId()))) {
+                try { cache.rememberSigner(signature.getSigningCertificateToken()); cache.rememberLists(signature.getSigningCertificateToken(), usedLists); savedSigners++; }
+                catch (Exception e) { cacheInfo.put("saveWarning", "Nem sikerült minden aláíró tanúsítványát menteni: " + e.getMessage()); }
+            }
+        }
+        cacheInfo.put("savedValidSignerCertificates",savedSigners);
+        cacheInfo.put("totalResourceCacheHits",cache.hits.get());
+        cacheInfo.put("totalResourceDownloadAttempts",cache.downloads.get());
+        result.put("signatures", signatures);
+        result.put("documentCoverage", DocumentCoverage.summarize(signatures));
+        result.put("status", "COMPLETED");
+    }
+
+    static List<Map<String,Object>> signatureResults(eu.europa.esig.dss.validation.reports.Reports reports, long fileSize) {
+        var simple = reports.getSimpleReport();
         List<Map<String,Object>> signatures = new ArrayList<>();
         for (String id : simple.getSignatureIdList()) {
             Map<String,Object> s = new LinkedHashMap<>();
@@ -224,26 +234,18 @@ public final class Main {
             s.put("warnings", simple.getAdESValidationWarnings(id));
             s.put("qualificationErrors", simple.getQualificationErrors(id));
             s.put("qualificationWarnings", simple.getQualificationWarnings(id));
+            var diagnostic = reports.getDiagnosticData().getSignatureById(id);
+            s.put("coverage", DocumentCoverage.signature(diagnostic.getSignatureByteRange(),
+                diagnostic.isSignatureByteRangeValid(), fileSize));
             signatures.add(s);
         }
-        int savedSigners = 0;
-        for (var signature : validator.getSignatures()) {
-            if (eu.europa.esig.dss.enumerations.Indication.TOTAL_PASSED.equals(simple.getIndication(signature.getId()))) {
-                try { cache.rememberSigner(signature.getSigningCertificateToken()); cache.rememberLists(signature.getSigningCertificateToken(), usedLists); savedSigners++; }
-                catch (Exception e) { cacheInfo.put("saveWarning", "Nem sikerült minden aláíró tanúsítványát menteni: " + e.getMessage()); }
-            }
-        }
-        cacheInfo.put("savedValidSignerCertificates",savedSigners);
-        cacheInfo.put("totalResourceCacheHits",cache.hits.get());
-        cacheInfo.put("totalResourceDownloadAttempts",cache.downloads.get());
-        result.put("signatures", signatures);
-        result.put("status", "COMPLETED");
+        return signatures;
     }
 
     static final class RetryAllLists extends RuntimeException {}
 
     static void refreshLists(TLValidationJob job) {
-        var workers = java.util.concurrent.Executors.newCachedThreadPool();
+        var workers = java.util.concurrent.Executors.newFixedThreadPool(4);
         job.setExecutorService(workers);
         try { job.onlineRefresh(); }
         finally { workers.shutdownNow(); }

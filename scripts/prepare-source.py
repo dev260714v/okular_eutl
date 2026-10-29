@@ -9,6 +9,19 @@ import re
 import tarfile
 
 root = Path(__file__).resolve().parents[1]
+# The readable header is canonical; the installable patch must contain exactly it.
+header = (root / "eutldialog.h").read_bytes()
+assert header.endswith(b"\n"), "eutldialog.h must end in a newline"
+blob = hashlib.sha1(b"blob " + str(len(header)).encode() + b"\0" + header).hexdigest()[:7]
+lines = header.decode().splitlines(keepends=True)
+new_file = ("diff --git a/part/eutldialog.h b/part/eutldialog.h\nnew file mode 100644\n"
+            f"index 0000000..{blob}\n--- /dev/null\n+++ b/part/eutldialog.h\n@@ -0,0 +1,{len(lines)} @@\n"
+            + "".join("+" + line for line in lines))
+patch = root / "okular-eutl.patch"
+old_patch = patch.read_text()
+assert old_patch.startswith("diff --git a/part/eutldialog.h b/part/eutldialog.h\n")
+next_file = old_patch.index("diff --git ", 1)
+patch.write_text(new_file + old_patch[next_file:])
 buffer = io.BytesIO()
 with tarfile.open(fileobj=buffer, mode="w", format=tarfile.PAX_FORMAT) as archive:
     for name in ("backend", "trust", "tests"):

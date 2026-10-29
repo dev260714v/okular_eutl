@@ -18,10 +18,11 @@ int main(int argc, char **argv) {
         const auto add = [&](const char *ind) { signatures.append(QJsonObject{{"signedBy","Teszt Aláíró"},{"indication",ind},{"qualification","QESIG"}}); };
         if (bytes.contains("MIXED")) { add("TOTAL_PASSED"); add("INDETERMINATE"); }
         else if (bytes.contains("INVALID")) add("TOTAL_FAILED");
-        else if (bytes.contains("UNKNOWN")) add("INDETERMINATE");
+        else if (bytes.contains("\nUNKNOWN")) add("INDETERMINATE");
         else if (bytes.contains("EMPTY")) root["status"]="NO_SIGNATURES";
         else add("TOTAL_PASSED");
         root["signatures"] = signatures;
+        if (!bytes.contains("NO_COVERAGE")) root["documentCoverage"] = QJsonObject{{"status", bytes.contains("PARTIAL") ? "PARTIAL" : bytes.contains("COVERAGE_UNKNOWN") ? "UNKNOWN" : "FULL"}};
         if (bytes.contains("WRONG_HASH")) root["sha256"]="wrong";
         QFile out(QString::fromLocal8Bit(argv[2])+"/result.json");out.open(QIODevice::WriteOnly);
         out.write(bytes.contains("BAD_JSON") ? QByteArray("invalid") : QJsonDocument(root).toJson());
@@ -41,7 +42,7 @@ int main(int argc, char **argv) {
     QTemporaryDir temp;
     if (qEnvironmentVariableIsSet("EUTL_UI_SCREENSHOTS")) { temp.setAutoRemove(false); std::cout << "Screenshots: " << temp.path().toStdString() << std::endl; }
     try {
-        for (const auto &mode : {"VALID", "INVALID", "UNKNOWN", "MIXED", "EMPTY", "BAD_JSON", "WRONG_HASH"}) {
+        for (const auto &mode : {"VALID", "INVALID", "UNKNOWN", "MIXED", "EMPTY", "BAD_JSON", "WRONG_HASH", "PARTIAL", "NO_COVERAGE", "COVERAGE_UNKNOWN"}) {
             const QString file=temp.filePath(QString::fromLatin1(mode)+".pdf");
             QFile f(file); f.open(QIODevice::WriteOnly); f.write(QByteArray("%PDF-1.7\n")+mode);f.close();
             EutlDialog dialog(file,nullptr,QCoreApplication::applicationFilePath());dialog.show();
@@ -59,6 +60,7 @@ int main(int argc, char **argv) {
                 if (qEnvironmentVariableIsSet("EUTL_UI_SCREENSHOTS")) dialog.grab().save(temp.filePath("valid.png"));
             } else if (QString::fromLatin1(mode)=="INVALID") require(text==QStringLiteral("✗ ÉRVÉNYTELEN"),"invalid verdict incorrect");
             else if (QString::fromLatin1(mode)=="EMPTY") require(text.contains(QStringLiteral("NINCS FELISMERT")),"unsigned file shown as valid");
+            else if (QString::fromLatin1(mode)=="PARTIAL" || QString::fromLatin1(mode)=="NO_COVERAGE" || QString::fromLatin1(mode)=="COVERAGE_UNKNOWN") require(text.contains(QStringLiteral("LEFEDETTSÉGE NEM IGAZOLT")),"coverage warning missing");
             else require(text==QStringLiteral("⚠ NEM ELLENŐRIZHETŐ"),"incomplete result shown as conclusive");
             std::cout << mode << ": OK\n";
         }

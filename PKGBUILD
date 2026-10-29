@@ -4,7 +4,7 @@
 pkgname=okular-eutl
 _upstream=okular
 pkgver=26.08.2
-pkgrel=4
+pkgrel=5
 pkgdesc='Okular 26.08.2 with integrated local DSS EU trusted-list validation (experimental)'
 arch=(x86_64)
 url='https://apps.kde.org/okular/'
@@ -67,8 +67,8 @@ source=(https://download.kde.org/stable/release-service/$pkgver/src/$_upstream-$
         okular-eutl-engine)
 sha256sums=('f9b39abcb7c6c3ace5d7acf669fa7ed47cf3aa7b932a8b6abe2abbd8075fc9f5'
             'SKIP'
-            '55be92cd44383cf48eb986b4f9741590ab319a600653bd093cd20edefe53f51c'
-            'c99f885217c086d05d37c23e3936c0a946aed21ba15240a614d67603c4a88bd8'
+            'f889e24e0754b0d80a6040a14d80d10adbee73c162dcbd0a8257a4b2e161a283'
+            '88c896b87228cc0df9dac5ebf9c4635454a1165dcda0a79d09235f2fb8f0ccdd'
             '49ea759a03c74a4fff039dc2a32b881d036b1b784f70439dbe30c5dd49af790a')
 validpgpkeys=(CA262C6C83DE4D2FB28A332A3A6A4DB839EAA6D7  # Albert Astals Cid <aacid@kde.org>
               F23275E4BF10AFC1DF6914A6DBD2CE893E2D1C87  # Christoph Feck <cfeck@kde.org>
@@ -102,7 +102,7 @@ build() {
 
 package() {
   DESTDIR="$pkgdir" cmake --install build
-  install -Dm644 "$srcdir/backend/target/okular-eutl-0.1.2.jar" "$pkgdir/usr/share/okular-eutl/engine.jar"
+  install -Dm644 "$srcdir/backend/target/okular-eutl-0.1.3.jar" "$pkgdir/usr/share/okular-eutl/engine.jar"
   install -Dm755 "$srcdir/okular-eutl-engine" "$pkgdir/usr/bin/okular-eutl-engine"
   install -Dm644 "$srcdir/trust/lotl-anchors.pem" "$pkgdir/etc/okular-eutl/lotl-anchors.pem"
   install -Dm644 "$srcdir/trust/oj-url.txt" "$pkgdir/etc/okular-eutl/oj-url.txt"

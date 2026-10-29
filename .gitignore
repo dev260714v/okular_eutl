@@ -1,0 +1,33 @@
+# Generated builds and local packaging
+**/target/
+/build/
+/src/
+/pkg/
+/dist/
+engine-source.tar.gz
+*.jar
+*.class
+*.pkg.tar.*
+*.deb
+*.zip
+*.tar.gz
+# Validation inputs, outputs, credentials and local settings
+/reports/
+/cache/
+/test-results/
+*.pdf
+*.p12
+*.pfx
+*.key
+*.jks
+*.log
+result.json
+simple-report.xml
+detailed-report.xml
+diagnostic-data.xml
+etsi-report.xml
+.env
+.env.*
+*.local
+.DS_Store
+__pycache__/

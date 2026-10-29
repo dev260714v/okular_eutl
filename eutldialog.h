@@ -32,7 +32,7 @@ inline Verdict verdict(const QString &indication) {
         return {QStringLiteral("✗ ÉRVÉNYTELEN"), QStringLiteral("#7f1d1d"), QStringLiteral("#fee2e2")};
     return {QStringLiteral("⚠ NEM ELLENŐRIZHETŐ"), QStringLiteral("#713f12"), QStringLiteral("#fef3c7")};
 }
-inline QString overallIndication(const QJsonArray &signatures) {
+inline QString overallIndication(const QJsonArray &signatures, const QJsonObject &coverage = {}) {
     if (signatures.isEmpty()) return {};
     bool unknown = false;
     for (const auto &value : signatures) {
@@ -40,7 +40,8 @@ inline QString overallIndication(const QJsonArray &signatures) {
         if (indication == QStringLiteral("TOTAL_FAILED")) return QStringLiteral("TOTAL_FAILED");
         if (indication != QStringLiteral("TOTAL_PASSED")) unknown = true;
     }
-    return unknown ? QStringLiteral("INDETERMINATE") : QStringLiteral("TOTAL_PASSED");
+    return unknown || coverage.value(QStringLiteral("status")).toString() != QStringLiteral("FULL")
+        ? QStringLiteral("INDETERMINATE") : QStringLiteral("TOTAL_PASSED");
 }
 inline QString badge(const QString &indication) {
     const auto v = verdict(indication);
@@ -221,7 +222,9 @@ private:
         }
         finishBusy();
         const QJsonArray signatures = root.value(QStringLiteral("signatures")).toArray();
-        showVerdict(EutlUi::overallIndication(signatures));
+        const auto coverage = root.value(QStringLiteral("documentCoverage")).toObject();
+        const QString coverageStatus = coverage.value(QStringLiteral("status")).toString();
+        showVerdict(EutlUi::overallIndication(signatures, coverage));
         QString html = QStringLiteral("<h2>EU-s aláírás-ellenőrzés</h2><p><b>Vizsgált mentett fájl:</b> %1<br><b>SHA-256:</b> %2<br><b>Ellenőrzés:</b> %3</p>")
             .arg(escaped(m_source), m_hash, escaped(root.value(QStringLiteral("validationTime")).toString()));
         if (state == QStringLiteral("NO_SIGNATURES")) {
@@ -229,10 +232,19 @@ private:
             html += QStringLiteral("<p>A PDF-ben nem található a motor által felismert elektronikus aláírás.</p>");
         } else {
             if (signatures.isEmpty()) { fail(QStringLiteral("Hiányzó aláíráseredmények.")); return; }
-            if (EutlUi::overallIndication(signatures) == QStringLiteral("TOTAL_PASSED"))
+            if (EutlUi::overallIndication(signatures, coverage) == QStringLiteral("TOTAL_PASSED"))
                 html += QStringLiteral("<p><b>Minden felismert aláírás érvényes (%1 db).</b></p>").arg(signatures.size());
             else
                 html += QStringLiteral("<p>%1 aláírás vizsgálata befejeződött. Az egyedi eredmények alább láthatók.</p>").arg(signatures.size());
+            if (coverageStatus == QStringLiteral("FULL")) {
+                html += QStringLiteral("<p><b>✓ A jelenlegi PDF-változatot legalább egy érvényes aláírás lefedi.</b> A többi aláírás korábbi változatra is vonatkozhat.</p>");
+            } else {
+                if (EutlUi::overallIndication(signatures, QJsonObject{{QStringLiteral("status"), QStringLiteral("FULL")}}) == QStringLiteral("TOTAL_PASSED"))
+                    showVerdict(QStringLiteral("INDETERMINATE"), QStringLiteral("⚠ A JELENLEGI PDF LEFEDETTSÉGE NEM IGAZOLT"));
+                html += coverageStatus == QStringLiteral("PARTIAL")
+                    ? QStringLiteral("<p><b>⚠ Az aláírások korábbi PDF-változatokra vonatkoznak. A jelenlegi fájl további bájtokat vagy módosításokat tartalmaz; ezek elfogadhatóságát a részletes jelentés alapján kell értékelni.</b></p>")
+                    : QStringLiteral("<p><b>⚠ Nem állapítható meg, hogy érvényes aláírás lefedi-e a jelenlegi PDF-változatot.</b></p>");
+            }
             for (const QJsonValue &value : signatures) {
                 const auto s = value.toObject();
                 const QString indication = s.value(QStringLiteral("indication")).toString();
@@ -244,6 +256,12 @@ private:
                 else if (qualification == QStringLiteral("ADESEAL")) qualified = QStringLiteral("Fokozott biztonságú elektronikus bélyegző (AdESeal)");
                 html += QStringLiteral("<hr><h3>%1</h3><p>%2</p><p>%3</p>")
                     .arg(escaped(s.value(QStringLiteral("signedBy")).toString()), EutlUi::badge(indication), escaped(qualified));
+                const QString signatureCoverage = s.value(QStringLiteral("coverage")).toString();
+                html += signatureCoverage == QStringLiteral("FULL")
+                    ? QStringLiteral("<p>Lefedettség: jelenlegi PDF-változat (a saját aláírásadat kivételével).</p>")
+                    : signatureCoverage == QStringLiteral("PARTIAL")
+                        ? QStringLiteral("<p>⚠ Lefedettség: korábbi PDF-változat.</p>")
+                        : QStringLiteral("<p>⚠ Lefedettség: nem állapítható meg.</p>");
                 const QString sub = s.value(QStringLiteral("subIndication")).toString();
                 if (!sub.isEmpty()) html += QStringLiteral("<p><b>Indok:</b> %1</p>").arg(escaped(sub));
                 if (!s.value(QStringLiteral("warnings")).toArray().isEmpty())
