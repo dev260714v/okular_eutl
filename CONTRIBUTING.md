@@ -51,7 +51,7 @@ sikeres ellenőrzésként. A gyorsítótárban tárolt aláírót ne emeld bizal
 A kizárólag felületi teszt a Qt6 fejlesztői csomagjaival fordítható:
 
 ```sh
-c++ -std=c++17 -fPIC -I. tests/ui-smoke.cpp $(pkg-config --cflags --libs Qt6Widgets) -o /tmp/okular-eutl-ui-test
+c++ -std=c++17 -fPIC -DQT_NO_CAST_FROM_ASCII -DQT_NO_CAST_TO_ASCII -DQT_NO_CAST_FROM_BYTEARRAY -I. tests/ui-smoke.cpp $(pkg-config --cflags --libs Qt6Widgets) -o /tmp/okular-eutl-ui-test
 QT_QPA_PLATFORM=offscreen /tmp/okular-eutl-ui-test
 ```
 

@@ -5,6 +5,9 @@ vizsgálja a nyilvános forrást és a rögzített bizalmi tanúsítvány-ujjlen
 valamint ellenőrzi a megismételhető csomagkészítést és az elsődleges felületi fejléc
 szinkronját a telepítendő Okular-javítással.
 Külön automatikus feladat fordítja és képernyő nélkül futtatja a Qt6-párbeszédablak tesztjét.
+A fordítás tiltja az automatikus ASCII/QString és QByteArray/QString konverziókat
+(`QT_NO_CAST_FROM_ASCII`, `QT_NO_CAST_TO_ASCII`, `QT_NO_CAST_FROM_BYTEARRAY`),
+az Okular/KDE szigorú szövegkezelési követelményeinek ellenőrzésére.
 A függőségekkel egyesített JAR külön folyamatként is elindul generált, aláírás nélküli és
 hibás PDF-ekkel: a teszt ellenőrzi a kilépési kódot, a JSON-állapotot és a bemeneti fájl lenyomatát.
 

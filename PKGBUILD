@@ -4,7 +4,7 @@
 pkgname=okular-eutl
 _upstream=okular
 pkgver=26.08.2
-pkgrel=6
+pkgrel=7
 pkgdesc='Okular 26.08.2 with integrated local DSS EU trusted-list validation (experimental)'
 arch=(x86_64)
 url='https://apps.kde.org/okular/'
@@ -67,8 +67,8 @@ source=(https://download.kde.org/stable/release-service/$pkgver/src/$_upstream-$
         okular-eutl-engine)
 sha256sums=('f9b39abcb7c6c3ace5d7acf669fa7ed47cf3aa7b932a8b6abe2abbd8075fc9f5'
             'SKIP'
-            'bae387a83f60e7251f28955dc81282e65a503436f6d479c928de2a1f95257299'
-            '52509a929e25980ecd5af1129409455d987a6decf68303a04443e747fe079607'
+            '681048235036bfa73ed07faede9348085b0593eb02b3c447be0b6fde800612cf'
+            '1fb4f399f4041211974880ebf848fcb744715d0d15075f85dd8807a51eaff4b7'
             '49ea759a03c74a4fff039dc2a32b881d036b1b784f70439dbe30c5dd49af790a')
 validpgpkeys=(CA262C6C83DE4D2FB28A332A3A6A4DB839EAA6D7  # Albert Astals Cid <aacid@kde.org>
               F23275E4BF10AFC1DF6914A6DBD2CE893E2D1C87  # Christoph Feck <cfeck@kde.org>

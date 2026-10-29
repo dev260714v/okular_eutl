@@ -1,6 +1,6 @@
 diff --git a/part/eutldialog.h b/part/eutldialog.h
 new file mode 100644
-index 0000000..62ea91b
+index 0000000..1c60c18
 --- /dev/null
 +++ b/part/eutldialog.h
 @@ -0,0 +1,376 @@
@@ -232,18 +232,18 @@ index 0000000..62ea91b
 +    }
 +    static QString timestampHtml(const QJsonObject &timestamp)
 +    {
-+        const QString indication = timestamp.value("indication").toString();
-+        const bool valid = (indication == "PASSED" || indication == "TOTAL_PASSED")
-+            && timestamp.value("messageImprintFound").toBool() && timestamp.value("messageImprintIntact").toBool();
-+        const bool failed = indication == "FAILED" || indication == "TOTAL_FAILED";
++        const QString indication = timestamp.value(QStringLiteral("indication")).toString();
++        const bool valid = (indication == QStringLiteral("PASSED") || indication == QStringLiteral("TOTAL_PASSED"))
++            && timestamp.value(QStringLiteral("messageImprintFound")).toBool() && timestamp.value(QStringLiteral("messageImprintIntact")).toBool();
++        const bool failed = indication == QStringLiteral("FAILED") || indication == QStringLiteral("TOTAL_FAILED");
 +        const QString status = EutlUi::badge(valid ? QStringLiteral("TOTAL_PASSED") : failed ? QStringLiteral("TOTAL_FAILED") : QStringLiteral("INDETERMINATE"));
-+        const QString qualification = timestamp.value("qualification").toString();
-+        const QString level = qualification == "QTSA" ? QStringLiteral("minősített")
-+            : qualification == "TSA" ? QStringLiteral("nem minősített") : QStringLiteral("minősítése nem állapítható meg");
-+        const QString type = timestamp.value("documentTimestamp").toBool() ? QStringLiteral("Dokumentum-/archiválási időbélyeg")
-+            : timestamp.value("coversSignature").toBool() ? QStringLiteral("Aláírást védő időbélyeg") : QStringLiteral("Adatot védő időbélyeg");
++        const QString qualification = timestamp.value(QStringLiteral("qualification")).toString();
++        const QString level = qualification == QStringLiteral("QTSA") ? QStringLiteral("minősített")
++            : qualification == QStringLiteral("TSA") ? QStringLiteral("nem minősített") : QStringLiteral("minősítése nem állapítható meg");
++        const QString type = timestamp.value(QStringLiteral("documentTimestamp")).toBool() ? QStringLiteral("Dokumentum-/archiválási időbélyeg")
++            : timestamp.value(QStringLiteral("coversSignature")).toBool() ? QStringLiteral("Aláírást védő időbélyeg") : QStringLiteral("Adatot védő időbélyeg");
 +        return QStringLiteral("<p><b>%1: %2</b> (%3)<br>%4<br>%5</p>")
-+            .arg(escaped(type), status, escaped(level), escaped(localTime(timestamp.value("productionTime").toString())), escaped(timestamp.value("producedBy").toString()));
++            .arg(escaped(type), status, escaped(level), escaped(localTime(timestamp.value(QStringLiteral("productionTime")).toString())), escaped(timestamp.value(QStringLiteral("producedBy")).toString()));
 +    }
 +    void readResult(int code, QProcess::ExitStatus status)
 +    {
@@ -268,7 +268,7 @@ index 0000000..62ea91b
 +        if (code != 0 || (state != QStringLiteral("COMPLETED") && state != QStringLiteral("NO_SIGNATURES"))) {
 +            fail(QStringLiteral("Az ellenőrzőmotor sikertelenül állt le.")); return;
 +        }
-+        if (!root.value("timestamps").isArray()) {
++        if (!root.value(QStringLiteral("timestamps")).isArray()) {
 +            fail(QStringLiteral("Hiányzó időbélyegadatok. Frissítse az ellenőrzőmotort.")); return;
 +        }
 +        finishBusy();
@@ -281,16 +281,16 @@ index 0000000..62ea91b
 +        }
 +        showVerdict(EutlUi::overallIndication(signatures, coverage));
 +        if (signatures.isEmpty()) showVerdict(QStringLiteral("INDETERMINATE"), QStringLiteral("⚠ NINCS FELISMERT ALÁÍRÁS"));
-+        else if (EutlUi::overallIndication(signatures, QJsonObject{{"status", "FULL"}}) == QStringLiteral("TOTAL_PASSED")
++        else if (EutlUi::overallIndication(signatures, QJsonObject{{QStringLiteral("status"), QStringLiteral("FULL")}}) == QStringLiteral("TOTAL_PASSED")
 +                 && coverageStatus != QStringLiteral("FULL"))
 +            showVerdict(QStringLiteral("INDETERMINATE"), QStringLiteral("⚠ A JELENLEGI PDF LEFEDETTSÉGE NEM IGAZOLT"));
 +        bool failedTimestamp = false, unknownTimestamp = false;
 +        for (const auto &value : timestamps) {
 +            const auto timestamp = value.toObject();
-+            const auto indication = timestamp.value("indication").toString();
-+            failedTimestamp |= indication == "FAILED" || indication == "TOTAL_FAILED";
-+            unknownTimestamp |= !((indication == "PASSED" || indication == "TOTAL_PASSED")
-+                && timestamp.value("messageImprintFound").toBool() && timestamp.value("messageImprintIntact").toBool());
++            const auto indication = timestamp.value(QStringLiteral("indication")).toString();
++            failedTimestamp |= indication == QStringLiteral("FAILED") || indication == QStringLiteral("TOTAL_FAILED");
++            unknownTimestamp |= !((indication == QStringLiteral("PASSED") || indication == QStringLiteral("TOTAL_PASSED"))
++                && timestamp.value(QStringLiteral("messageImprintFound")).toBool() && timestamp.value(QStringLiteral("messageImprintIntact")).toBool());
 +        }
 +        const QString timestampIndication = timestamps.isEmpty() || unknownTimestamp ? QStringLiteral("INDETERMINATE") : QStringLiteral("TOTAL_PASSED");
 +        const auto timestampVerdict = EutlUi::verdict(failedTimestamp ? QStringLiteral("TOTAL_FAILED") : timestampIndication);
@@ -302,21 +302,21 @@ index 0000000..62ea91b
 +        for (const auto &value : signatures) {
 +            const auto signature = value.toObject();
 +            html += QStringLiteral("<h3>%1</h3><p>Aláírás: %2</p>")
-+                .arg(escaped(signature.value("signedBy").toString()), EutlUi::badge(signature.value("indication").toString()));
-+            const QString qualification = signature.value("qualification").toString();
-+            html += QStringLiteral("<p>%1</p>").arg(escaped(qualification == "QESIG" ? QStringLiteral("Minősített elektronikus aláírás")
-+                : qualification == "QESEAL" ? QStringLiteral("Minősített elektronikus bélyegző")
-+                : qualification == "ADESIG" ? QStringLiteral("Fokozott biztonságú elektronikus aláírás")
-+                : qualification == "ADESEAL" ? QStringLiteral("Fokozott biztonságú elektronikus bélyegző") : qualification));
-+            const QString claimed = signature.value("claimedSigningTime").toString();
++                .arg(escaped(signature.value(QStringLiteral("signedBy")).toString()), EutlUi::badge(signature.value(QStringLiteral("indication")).toString()));
++            const QString qualification = signature.value(QStringLiteral("qualification")).toString();
++            html += QStringLiteral("<p>%1</p>").arg(escaped(qualification == QStringLiteral("QESIG") ? QStringLiteral("Minősített elektronikus aláírás")
++                : qualification == QStringLiteral("QESEAL") ? QStringLiteral("Minősített elektronikus bélyegző")
++                : qualification == QStringLiteral("ADESIG") ? QStringLiteral("Fokozott biztonságú elektronikus aláírás")
++                : qualification == QStringLiteral("ADESEAL") ? QStringLiteral("Fokozott biztonságú elektronikus bélyegző") : qualification));
++            const QString claimed = signature.value(QStringLiteral("claimedSigningTime")).toString();
 +            if (!claimed.isEmpty()) html += QStringLiteral("<p>Aláíró által megadott idő: %1<br><small>Önmagában nem független időigazolás.</small></p>").arg(escaped(localTime(claimed)));
-+            const auto ids = signature.value("timestampIds").toArray();
++            const auto ids = signature.value(QStringLiteral("timestampIds")).toArray();
 +            bool hasProof = false;
 +            for (const auto &t : timestamps) {
 +                const auto timestamp = t.toObject();
-+                if (ids.contains(timestamp.value("id")) && timestamp.value("coversSignature").toBool()) {
++                if (ids.contains(timestamp.value(QStringLiteral("id"))) && timestamp.value(QStringLiteral("coversSignature")).toBool()) {
 +                    hasProof = true; html += timestampHtml(timestamp);
-+                    shownTimestamps.insert(timestamp.value("id").toString());
++                    shownTimestamps.insert(timestamp.value(QStringLiteral("id")).toString());
 +                }
 +            }
 +            if (!hasProof) html += QStringLiteral("<p>⚠ Az aláíráshoz nem található szolgáltatói időbélyeg, amely az aláírás létezését igazolja.</p>");
@@ -327,11 +327,11 @@ index 0000000..62ea91b
 +        if (!timestamps.isEmpty()) {
 +            for (const auto &value : timestamps) {
 +                const auto timestamp = value.toObject();
-+                if (!shownTimestamps.contains(timestamp.value("id").toString())) html += timestampHtml(timestamp);
++                if (!shownTimestamps.contains(timestamp.value(QStringLiteral("id")).toString())) html += timestampHtml(timestamp);
 +            }
 +        }
 +        if (coverageStatus == QStringLiteral("FULL")) {
-+            const bool timestampCoverage = !coverage.value("coveringTimestampIds").toArray().isEmpty();
++            const bool timestampCoverage = !coverage.value(QStringLiteral("coveringTimestampIds")).toArray().isEmpty();
 +            html += timestampCoverage ? QStringLiteral("<p>✓ A jelenlegi PDF-változatot érvényes dokumentum-időbélyeg védi.</p>")
 +                : QStringLiteral("<p>✓ A jelenlegi PDF-változatot érvényes aláírás lefedi.</p>");
 +        } else if (!signatures.isEmpty() || !timestamps.isEmpty()) {

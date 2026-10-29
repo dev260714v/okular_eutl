@@ -1,5 +1,12 @@
 # Változásnapló
 
+## 0.1.4, 7. csomagkiadás – Okular fordítási kompatibilitás
+
+- A felület összes QString-adatánál kifejezett szövegliterálokat használunk,
+  így az Okular szigorú Qt-fordítási beállításaival is fordítható.
+- A Qt6-regressziós teszt és a CI az automatikus ASCII/QString és
+  QByteArray/QString átalakítások tiltásával fordul, hogy ezt a hibát jelezze.
+
 ## 0.1.4 – Időbélyegzés, nagy PDF-ek és korlátozott gyorsítótár
 
 - A beágyazott, dokumentum- és archiválási időbélyegek önálló eredménye, szolgáltatója,

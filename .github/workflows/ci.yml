@@ -53,5 +53,5 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends g++ pkg-config qt6-base-dev
       - name: A párbeszédablak fordítása és próbája képernyő nélkül
         run: |
-          c++ -std=c++17 -fPIC -I. tests/ui-smoke.cpp $(pkg-config --cflags --libs Qt6Widgets) -o /tmp/okular-eutl-ui-test
+          c++ -std=c++17 -fPIC -DQT_NO_CAST_FROM_ASCII -DQT_NO_CAST_TO_ASCII -DQT_NO_CAST_FROM_BYTEARRAY -I. tests/ui-smoke.cpp $(pkg-config --cflags --libs Qt6Widgets) -o /tmp/okular-eutl-ui-test
           QT_QPA_PLATFORM=offscreen /tmp/okular-eutl-ui-test
