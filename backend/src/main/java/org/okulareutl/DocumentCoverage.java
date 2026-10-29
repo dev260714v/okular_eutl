@@ -21,7 +21,12 @@ final class DocumentCoverage {
     }
 
     static Map<String,Object> summarize(List<Map<String,Object>> signatures) {
+        return summarize(signatures, List.of());
+    }
+
+    static Map<String,Object> summarize(List<Map<String,Object>> signatures, List<Map<String,Object>> timestamps) {
         var covering = new ArrayList<String>();
+        var coveringTimestamps = new ArrayList<String>();
         boolean unknown = signatures.isEmpty();
         for (var signature : signatures) {
             String coverage = (String)signature.get("coverage");
@@ -30,7 +35,14 @@ final class DocumentCoverage {
             if (!"PARTIAL".equals(coverage)
                     && !("FULL".equals(coverage) && "TOTAL_PASSED".equals(String.valueOf(signature.get("indication"))))) unknown = true;
         }
-        return Map.of("status", !covering.isEmpty() ? "FULL" : unknown ? "UNKNOWN" : "PARTIAL",
-            "coveringSignatureIds", covering);
+        for (var timestamp : timestamps) {
+            if (!Boolean.TRUE.equals(timestamp.get("documentTimestamp"))) continue;
+            String coverage = String.valueOf(timestamp.get("coverage"));
+            if ("FULL".equals(coverage) && TimestampResults.valid(timestamp))
+                coveringTimestamps.add(String.valueOf(timestamp.get("id")));
+            else if (!"PARTIAL".equals(coverage)) unknown = true;
+        }
+        return Map.of("status", !covering.isEmpty() || !coveringTimestamps.isEmpty() ? "FULL" : unknown ? "UNKNOWN" : "PARTIAL",
+            "coveringSignatureIds", covering, "coveringTimestampIds", coveringTimestamps);
     }
 }

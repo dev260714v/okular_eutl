@@ -1,7 +1,7 @@
 # Biztonsági tájékoztató
 
 Ez egy kísérleti, helyben futó ellenőrzési integráció, nem minősített validálási szolgáltatás.
-A jelenleg karbantartott változat az Okular 26.08.2-re és a 0.1.3-as ellenőrzőmotorra épül.
+A jelenleg karbantartott változat az Okular 26.08.2-re és a 0.1.4-es ellenőrzőmotorra épül.
 
 Ha a tárolóban engedélyezett a GitHub bizalmas sérülékenység-bejelentése,
 a GitHub biztonsági lapján ezt a lehetőséget használd.

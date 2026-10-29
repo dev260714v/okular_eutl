@@ -27,9 +27,9 @@ jobs:
       - name: A bizalmi tanúsítványok ujjlenyomatainak ellenőrzése
         run: python3 tests/verify-trust.py
       - name: A motor fordítása és a tesztek futtatása
-        run: mvn -B -ntp -f backend/pom.xml verify
+        run: mvn -B -ntp -f backend/pom.xml -DargLine=-Xmx768m verify
       - name: Az egyesített motorfolyamat próbája hálózat nélkül
-        run: python3 tests/engine-cli.py backend/target/okular-eutl-0.1.3.jar
+        run: python3 tests/engine-cli.py backend/target/okular-eutl-0.1.4.jar
       - name: A megismételhető forráscsomag ellenőrzése
         shell: bash
         run: |

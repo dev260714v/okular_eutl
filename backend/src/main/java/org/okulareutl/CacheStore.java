@@ -15,7 +15,6 @@ import java.security.MessageDigest;
 import java.security.cert.*;
 import java.time.*;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /** Cache of input evidence only. Never caches an aláírás-validity verdict or creates a trust anchor. */
@@ -26,10 +25,64 @@ final class CacheStore {
     static final int MAX_SIGNERS = 256;
     static final long MAX_SIGNER_BYTES = 16L * 1024 * 1024;
     static final long MAX_CERT_BYTES = 1024 * 1024;
-    private static final ConcurrentHashMap<String,Object> LOCKS = new ConcurrentHashMap<>();
+    static final long MAX_TOTAL_BYTES = 256L * 1024 * 1024;
+    static final int MAX_ENTRIES = 4096;
+    private static final Object[] SLOTS = java.util.stream.IntStream.range(0, 64).mapToObj(i -> new Object()).toArray();
+    private static final Object BUDGET_LOCK = new Object();
     final Path root;
     final AtomicInteger hits = new AtomicInteger(), downloads = new AtomicInteger();
-    CacheStore(Path root) throws IOException { this.root = privateDirectory(root); }
+    CacheStore(Path root) throws IOException {
+        this.root = privateDirectory(root.toAbsolutePath().normalize());
+        budget(() -> { prune(MAX_TOTAL_BYTES, MAX_ENTRIES); return null; });
+    }
+
+    @FunctionalInterface interface IOAction<T> { T run() throws IOException; }
+    <T> T budget(IOAction<T> action) throws IOException {
+        synchronized (BUDGET_LOCK) {
+            try (var channel = FileChannel.open(root.resolve(".budget.lock"), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+                 var lock = channel.lock()) { return action.run(); }
+        }
+    }
+
+    // Walk without following links. Expired data is removed even when its URL is never requested again.
+    void prune(long maxBytes, int maxEntries) throws IOException {
+        var entries = new ArrayList<Path>();
+        long now = System.currentTimeMillis(), total = 0;
+        try (var paths = Files.walk(root)) {
+            for (Path p : paths.toList()) {
+                if (p.equals(root) || Files.isDirectory(p, LinkOption.NOFOLLOW_LINKS)) continue;
+                String name = p.getFileName().toString();
+                if (p.getParent().equals(root) && (name.equals(".budget.lock") || name.startsWith(".slot-"))) continue;
+                var attributes = Files.readAttributes(p, java.nio.file.attribute.BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+                long age = now - attributes.lastModifiedTime().toMillis();
+                String bucket = root.relativize(p).getName(0).toString();
+                Duration ttl = bucket.equals("trusted-lists") || name.endsWith(".lists.json") ? LIST_TTL
+                    : bucket.equals("crl") || bucket.equals("ocsp") ? Duration.ofMinutes(5) : CERT_TTL;
+                if (!attributes.isRegularFile() || age < 0 || age >= ttl.toMillis() || name.endsWith(".tmp") || name.endsWith(".lock")) {
+                    Files.deleteIfExists(p);
+                } else { entries.add(p); total += attributes.size(); }
+            }
+        }
+        entries.sort(Comparator.comparingLong(p -> {
+            try { return Files.getLastModifiedTime(p, LinkOption.NOFOLLOW_LINKS).toMillis(); }
+            catch (IOException e) { return Long.MIN_VALUE; }
+        }));
+        int count = entries.size();
+        for (Path p : entries) {
+            if (total <= maxBytes && count <= maxEntries) break;
+            total -= Files.size(p); count--; Files.deleteIfExists(p);
+        }
+    }
+
+    void store(Path target, byte[] bytes) throws IOException {
+        budget(() -> {
+            if (bytes.length > MAX_TOTAL_BYTES) return null;
+            Files.deleteIfExists(target);
+            prune(MAX_TOTAL_BYTES - bytes.length, MAX_ENTRIES - 1);
+            atomicWrite(target, bytes);
+            return null;
+        });
+    }
     static Path defaultPath() {
         String override = System.getProperty("okular.eutl.cacheDir");
         if (override != null && !override.isBlank()) return Path.of(override);
@@ -93,37 +146,58 @@ final class CacheStore {
     final class Loader implements DataLoader, DSSFileLoader {
         final DataLoader upstream;
         final Path directory;
-        final boolean list;
+        final boolean list, certificate;
+        final Duration ttl;
+        final long maxBytes;
         Loader(DataLoader upstream, String bucket, boolean list) throws IOException {
-            this.upstream=upstream; this.directory=privateDirectory(root.resolve(bucket)); this.list=list;
+            this(upstream, bucket, list, !list, list ? LIST_TTL : CERT_TTL, list ? MAX_BYTES : MAX_CERT_BYTES);
         }
-        public byte[] get(String url) {
+        // Revocation responses are cached as evidence, keyed by the complete request.
+        // DSS still checks their signatures, thisUpdate/nextUpdate and applicability.
+        Loader(DataLoader upstream, String bucket, Duration ttl, long maxBytes) throws IOException {
+            this(upstream, bucket, false, false, ttl, maxBytes);
+        }
+        private Loader(DataLoader upstream, String bucket, boolean list, boolean certificate, Duration ttl, long maxBytes) throws IOException {
+            this.upstream = upstream; this.directory = privateDirectory(root.resolve(bucket));
+            this.list = list; this.certificate = certificate; this.ttl = ttl; this.maxBytes = maxBytes;
+        }
+        public byte[] get(String url) { return fetch(url, null); }
+        private byte[] fetch(String url, byte[] request) {
             boolean archived = list && url.equals("https://ec.europa.eu/tools/lotl/Final_EU_TSL-UKsigned.xml");
-            String key = digest(url.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            String identity = request == null ? url : url + "\0POST\0" + digest(request);
+            String key = digest(identity.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             Path file = directory.resolve(key + ".bin");
-            synchronized (LOCKS.computeIfAbsent(file.toString(), k -> new Object())) {
-                try (var channel = FileChannel.open(directory.resolve(key+".lock"), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+            int slot = (file.toString().hashCode() & Integer.MAX_VALUE) % SLOTS.length;
+            synchronized (SLOTS[slot]) {
+                try (var channel = FileChannel.open(root.resolve(".slot-" + slot), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
                      var lock = channel.lock()) {
-                    if (fresh(file, list ? LIST_TTL : CERT_TTL, list, archived)) { hits.incrementAndGet(); return Files.readAllBytes(file); }
+                    byte[] cached = budget(() -> {
+                        if (list || certificate) return fresh(file, ttl, list, archived) ? Files.readAllBytes(file) : null;
+                        if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) return null;
+                        long age = System.currentTimeMillis() - Files.getLastModifiedTime(file).toMillis();
+                        return age >= 0 && age < ttl.toMillis() && Files.size(file) <= maxBytes ? Files.readAllBytes(file) : null;
+                    });
+                    if (cached != null) { hits.incrementAndGet(); return cached; }
                     downloads.incrementAndGet();
-                    byte[] bytes=upstream.get(url);
-                    if (bytes == null || bytes.length==0) throw new DSSException("Üres hálózati válasz: " + url);
-                    if (bytes.length > (list ? MAX_BYTES : MAX_CERT_BYTES)) throw new DSSException("A hálózati válasz túllépte a méretkorlátot");
-                    // Invalid evidence may still be returned to DSS for diagnosis, but is not reusable.
-                    boolean cacheable = list ? listWindow(bytes, Instant.now(), archived) : isCertificate(bytes);
-                    if (cacheable && bytes.length <= MAX_BYTES) atomicWrite(file, bytes);
+                    byte[] bytes = request == null ? upstream.get(url) : upstream.post(url, request);
+                    if (bytes == null || bytes.length == 0) throw new DSSException("Üres hálózati válasz: " + url);
+                    if (bytes.length > maxBytes) throw new DSSException("A hálózati válasz túllépte a méretkorlátot");
+                    boolean cacheable = list ? listWindow(bytes, Instant.now(), archived) : !certificate || isCertificate(bytes);
+                    if (cacheable) store(file, bytes);
                     return bytes;
-                } catch (IOException e) { throw new DSSException("Gyorsítótár írási/olvasási hiba",e); }
+                } catch (IOException e) { throw new DSSException("Gyorsítótár írási/olvasási hiba", e); }
             }
         }
         public DSSDocument getDocument(String url) { return new InMemoryDocument(get(url), url); }
         public DataAndUrl get(List<String> urls) {
             RuntimeException last = null;
-            for (String url : urls) try { return new DataAndUrl(url,get(url)); } catch (RuntimeException e) { last=e; }
+            for (String url : urls) try { return new DataAndUrl(url, get(url)); } catch (RuntimeException e) { last = e; }
             if (last != null) throw last;
             return null;
         }
-        public byte[] post(String url, byte[] content) { return upstream.post(url,content); }
+        public byte[] post(String url, byte[] content) {
+            return list || certificate ? upstream.post(url, content) : fetch(url, content);
+        }
         public void setContentType(String contentType) { upstream.setContentType(contentType); }
     }
     static boolean isCertificate(byte[] bytes) {
@@ -155,13 +229,8 @@ final class CacheStore {
         byte[] bytes=token.getEncoded();
         if (bytes.length > MAX_CERT_BYTES) return;
         Path directory = privateDirectory(root.resolve("validated-signers"));
-        synchronized (LOCKS.computeIfAbsent(directory.toString(), k -> new Object())) {
-            try (var channel = FileChannel.open(directory.resolve(".prune.lock"), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
-                 var lock = channel.lock()) {
-                atomicWrite(directory.resolve(digest(bytes)+".cer"),bytes);
-                pruneSigners(directory);
-            }
-        }
+        store(directory.resolve(digest(bytes) + ".cer"), bytes);
+        budget(() -> { pruneSigners(directory); return null; });
     }
 
     static void pruneSigners(Path directory) throws IOException {
@@ -219,6 +288,6 @@ final class CacheStore {
     void rememberLists(CertificateToken signer, Set<String> urls) throws Exception {
         if (signer == null || urls.isEmpty()) return;
         Path p=privateDirectory(root.resolve("validated-signers")).resolve(digest(signer.getEncoded())+".lists.json");
-        atomicWrite(p, Main.JSON.writeValueAsBytes(urls));
+        store(p, Main.JSON.writeValueAsBytes(urls));
     }
 }

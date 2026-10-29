@@ -163,4 +163,53 @@ class CacheStoreTest {
         assertThrows(DSSException.class,()->new CacheStore(root).new Loader(remote,"lists",true).get(URL));
         assertFalse(Files.exists(cachedFile()));
     }
+    @Test void totalQuotaEvictsOldestAcrossAllBuckets() throws Exception {
+        var store = new CacheStore(root);
+        for (String bucket : List.of("trusted-lists", "issuer-certificates", "crl", "ocsp", "validated-signers")) {
+            Path p = CacheStore.privateDirectory(root.resolve(bucket)).resolve("entry.bin");
+            Files.write(p, new byte[20]);
+            Files.setLastModifiedTime(p, FileTime.from(Instant.now().minusSeconds(bucket.equals("trusted-lists") ? 100 : 1)));
+        }
+        store.budget(() -> { store.prune(60, 3); return null; });
+        try (var paths = Files.walk(root)) {
+            var entries = paths.filter(p -> p.toString().endsWith(".bin")).toList();
+            assertEquals(3, entries.size()); long bytes = 0; for (var p : entries) bytes += Files.size(p);
+            assertTrue(bytes <= 60); assertFalse(Files.exists(root.resolve("trusted-lists/entry.bin")));
+        }
+    }
+    @Test void startupRemovesExpiredResourcesWithoutRequestingTheirUrls() throws Exception {
+        var store = new CacheStore(root);
+        Path old = CacheStore.privateDirectory(root.resolve("crl")).resolve("old.bin");
+        Files.write(old, new byte[10]); Files.setLastModifiedTime(old, FileTime.from(Instant.now().minusSeconds(301)));
+        new CacheStore(root); assertFalse(Files.exists(old));
+    }
+    @Test void revocationPostCacheIsBoundToRequestAndExpires() throws Exception {
+        var remote = new Remote(); var store = new CacheStore(root);
+        var loader = store.new Loader(remote, "ocsp", Duration.ofMinutes(5), 1024);
+        assertArrayEquals(new byte[]{1}, loader.post(URL, new byte[]{1}));
+        assertArrayEquals(new byte[]{1}, loader.post(URL, new byte[]{1}));
+        assertArrayEquals(new byte[]{2}, loader.post(URL, new byte[]{2}));
+        assertEquals(2, remote.posts.get());
+        try (var paths = Files.newDirectoryStream(root.resolve("ocsp"), "*.bin")) {
+            for (Path p : paths) Files.setLastModifiedTime(p, FileTime.from(Instant.now().minusSeconds(301)));
+        }
+        loader.post(URL, new byte[]{1}); assertEquals(3, remote.posts.get());
+    }
+    @Test void lockFileCountDoesNotGrowWithUrlCount() throws Exception {
+        var store = new CacheStore(root); var loader = store.new Loader(new Remote(), "trusted-lists", true);
+        for (int i = 0; i < 100; i++) loader.get(URL + i);
+        try (var paths = Files.list(root)) {
+            assertTrue(paths.filter(p -> p.getFileName().toString().startsWith(".slot-")).count() <= 64);
+        }
+    }
+
+    @Test void writingEnforcesProductionByteQuotaBeforeCreatingNewFile() throws Exception {
+        var store = new CacheStore(root);
+        Path directory = CacheStore.privateDirectory(root.resolve("issuer-certificates"));
+        Path old = directory.resolve("old.bin");
+        try (var file = new java.io.RandomAccessFile(old.toFile(), "rw")) { file.setLength(CacheStore.MAX_TOTAL_BYTES - 10); }
+        Path next = directory.resolve("new.bin"); store.store(next, new byte[20]);
+        assertFalse(Files.exists(old)); assertEquals(20, Files.size(next));
+    }
+
 }

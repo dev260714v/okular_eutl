@@ -3,7 +3,6 @@ package org.okulareutl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.europa.esig.dss.spi.tsl.TrustedListsCertificateSource;
-import eu.europa.esig.dss.model.FileDocument;
 import eu.europa.esig.dss.model.job.DocumentInfo;
 import eu.europa.esig.dss.model.tsl.*;
 import eu.europa.esig.dss.model.x509.CertificateToken;
@@ -20,9 +19,9 @@ import eu.europa.esig.dss.tsl.source.LOTLSource;
 import eu.europa.esig.dss.validation.SignedDocumentValidator;
 import eu.europa.esig.dss.validation.job.sync.SynchronizationStrategy;
 import java.nio.file.*;
-import java.security.MessageDigest;
 import java.security.cert.*;
 import java.time.Instant;
+import java.time.Duration;
 import java.util.*;
 
 public final class Main {
@@ -51,39 +50,42 @@ public final class Main {
         if (!Files.isDirectory(output)) throw new IllegalArgumentException("Hiányzó eredménykönyvtár");
         long startedNanos = System.nanoTime();
         Map<String,Object> result = new LinkedHashMap<>();
-        result.put("schema", 1);
-        result.put("engine", "DSS 6.5.1 / Okular EUTL 0.1.3");
+        result.put("schema", 2);
+        result.put("engine", "DSS 6.5.1 / Okular EUTL 0.1.4");
         result.put("validationTime", Instant.now().toString());
         result.put("status", "ERROR");
         result.put("signatures", List.of());
+        result.put("timestamps", List.of());
+        result.put("timestampStatus", "NOT_CHECKED");
         result.put("documentCoverage", Map.of("status", "UNKNOWN", "coveringSignatureIds", List.of()));
         try {
-            if (!Files.isRegularFile(input) || Files.size(input) > 256L * 1024 * 1024)
-                throw new IllegalArgumentException("Hiányzó vagy 256 MiB-nál nagyobb PDF");
-            byte[] bytes = Files.readAllBytes(input);
-            if (bytes.length < 5 || !new String(bytes, 0, 5, java.nio.charset.StandardCharsets.US_ASCII).equals("%PDF-"))
-                throw new IllegalArgumentException("Nem támogatott PDF-fejléc");
-            result.put("sha256", HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes)));
-            result.put("fileSize", bytes.length);
-            var validator = SignedDocumentValidator.fromDocument(new FileDocument(input.toFile()));
+            var fingerprint = PdfInput.inspect(input);
+            result.put("sha256", fingerprint.sha256());
+            result.put("fileSize", fingerprint.size());
+            var validator = PdfInput.validator(input, output.resolve("pdf-work"));
             validator.setCertificateVerifier(new CommonCertificateVerifier());
             var probedSignatures = validator.getSignatures();
             var probedSigners = probedSignatures.stream().map(signature -> signature.getSigningCertificateToken()).toList();
-            if (probedSignatures.isEmpty()) {
+            boolean hasTimestamps = !validator.getDetachedTimestamps().isEmpty()
+                || probedSignatures.stream().anyMatch(signature -> !signature.getAllTimestamps().isEmpty());
+            if (probedSignatures.isEmpty() && !hasTimestamps) {
                 result.put("status", "NO_SIGNATURES");
+                result.put("timestampStatus", "ABSENT");
             } else {
                 // Recreate the analyzer: the probe must not cache a verifier without EU trust data.
                 try {
-                    validate(SignedDocumentValidator.fromDocument(new FileDocument(input.toFile())), output, config, result, true, probedSigners);
+                    validate(PdfInput.validator(input, output.resolve("pdf-work")), output, config, result, true, probedSigners, hasTimestamps);
                 } catch (RetryAllLists e) {
                     result.put("listHintFallback", true);
-                    validate(SignedDocumentValidator.fromDocument(new FileDocument(input.toFile())), output, config, result, false, probedSigners);
+                    validate(PdfInput.validator(input, output.resolve("pdf-work")), output, config, result, false, probedSigners, hasTimestamps);
                 }
             }
         } catch (Exception e) {
             e.printStackTrace(System.err);
             result.put("status", "ERROR");
-            result.put("error", e.getClass().getSimpleName() + ": " + e.getMessage());
+            result.put("error", e instanceof eu.europa.esig.dss.pades.exception.InvalidPasswordException
+                ? "A jelszóval védett PDF-ek ellenőrzése nem támogatott."
+                : e.getClass().getSimpleName() + ": " + e.getMessage());
         }
         result.put("elapsedMillis", (System.nanoTime()-startedNanos)/1_000_000);
         JSON.writerWithDefaultPrettyPrinter().writeValue(output.resolve("result.json").toFile(), result);
@@ -92,7 +94,7 @@ public final class Main {
     }
 
     static void validate(SignedDocumentValidator validator, Path output, Path config,
-                         Map<String,Object> result, boolean useHints, List<CertificateToken> probedSigners) throws Exception {
+                         Map<String,Object> result, boolean useHints, List<CertificateToken> probedSigners, boolean hasTimestamps) throws Exception {
         Path pem = config.resolve("lotl-anchors.pem");
         if (!Files.isRegularFile(pem))
             throw new IllegalStateException("Nincs hitelesített LOTL-bizalmi alap: " + pem);
@@ -116,10 +118,15 @@ public final class Main {
         cacheInfo.put("trustedListMaxAgeHours", 6);
         cacheInfo.put("certificateMaxAgeDays", 30);
         cacheInfo.put("storesValidationVerdicts", false);
+        cacheInfo.put("maxTotalBytes", CacheStore.MAX_TOTAL_BYTES);
+        cacheInfo.put("maxEntries", CacheStore.MAX_ENTRIES);
+        cacheInfo.put("revocationMaxAgeSeconds", 300);
         result.put("cache", cacheInfo);
 
         var trusted = new TrustedListsCertificateSource();
-        Set<String> preferredLists = useHints ? cache.listsFor(probedSigners) : Set.of();
+        // A signer hint does not describe the TSA's trust list. Timestamped inputs
+        // must load all lists, even if the signature itself would pass with a hint.
+        Set<String> preferredLists = useHints && !hasTimestamps ? cache.listsFor(probedSigners) : Set.of();
         cacheInfo.put("listScope", preferredLists.isEmpty() ? "ALL" : "KNOWN_SIGNERS");
         cacheInfo.put("selectedTrustedListUrls", preferredLists);
         LOTLSource lotl = new LOTLSource();
@@ -168,21 +175,13 @@ public final class Main {
 
         var verifier = new CommonCertificateVerifier();
         verifier.setTrustedCertSources(trusted);
-        var cachedCrl = new eu.europa.esig.dss.service.crl.FileCacheCRLSource(new OnlineCRLSource(http));
-        cachedCrl.setFileCacheDirectory(CacheStore.privateDirectory(cache.root.resolve("crl")).toFile());
-        cachedCrl.setDefaultNextUpdateDelay(300L);
-        cachedCrl.setMaxNextUpdateDelay(21600L);
-        verifier.setCrlSource(cachedCrl);
+        verifier.setCrlSource(new OnlineCRLSource(cache.new Loader(http, "crl", Duration.ofMinutes(5), CacheStore.MAX_BYTES)));
         var adjunct = cache.signerCertificates(probedSigners);
         verifier.setAdjunctCertSources(adjunct);
         cacheInfo.put("reusedSignerCertificates",adjunct.getNumberOfCertificates());
         var ocsp = new SafeDataLoader(1024 * 1024);
         ocsp.setContentType("application/ocsp-request");
-        var cachedOcsp = new eu.europa.esig.dss.service.ocsp.FileCacheOCSPSource(new OnlineOCSPSource(ocsp));
-        cachedOcsp.setFileCacheDirectory(CacheStore.privateDirectory(cache.root.resolve("ocsp")).toFile());
-        cachedOcsp.setDefaultNextUpdateDelay(300L);
-        cachedOcsp.setMaxNextUpdateDelay(21600L);
-        verifier.setOcspSource(cachedOcsp);
+        verifier.setOcspSource(new OnlineOCSPSource(cache.new Loader(ocsp, "ocsp", Duration.ofMinutes(5), 1024 * 1024)));
         var aia = new DefaultAIASource(cache.new Loader(new SafeDataLoader(CacheStore.MAX_CERT_BYTES),"issuer-certificates",false));
         aia.setAcceptedProtocols(List.of(Protocol.HTTP, Protocol.HTTPS));
         verifier.setAIASource(aia);
@@ -213,8 +212,11 @@ public final class Main {
         cacheInfo.put("savedValidSignerCertificates",savedSigners);
         cacheInfo.put("totalResourceCacheHits",cache.hits.get());
         cacheInfo.put("totalResourceDownloadAttempts",cache.downloads.get());
+        var timestamps = TimestampResults.collect(reports, ((Number)result.get("fileSize")).longValue());
         result.put("signatures", signatures);
-        result.put("documentCoverage", DocumentCoverage.summarize(signatures));
+        result.put("timestamps", timestamps);
+        result.put("timestampStatus", TimestampResults.summarize(timestamps));
+        result.put("documentCoverage", DocumentCoverage.summarize(signatures, timestamps));
         result.put("status", "COMPLETED");
     }
 
@@ -235,6 +237,7 @@ public final class Main {
             s.put("qualificationErrors", simple.getQualificationErrors(id));
             s.put("qualificationWarnings", simple.getQualificationWarnings(id));
             var diagnostic = reports.getDiagnosticData().getSignatureById(id);
+            s.put("timestampIds", diagnostic.getTimestampList().stream().map(t -> t.getId()).toList());
             s.put("coverage", DocumentCoverage.signature(diagnostic.getSignatureByteRange(),
                 diagnostic.isSignatureByteRangeValid(), fileSize));
             signatures.add(s);

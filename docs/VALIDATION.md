@@ -50,3 +50,21 @@ a céldisztribúcióban, és nem tanúsítják minden PDF megfelelő kezelését
 Az EU-s bizalmi beállításokat, a visszavonási adatok frissességét, a korábbi időpontra
 vonatkozó ellenőrzést és a minősített aláírási státusz értelmezését karban kell tartani és felül kell vizsgálni.
 Hiányzó bizonyítékból megalapozás nélkül nem válhat sikeres vagy érvénytelen eredmény.
+
+## Időbélyeg- és nagyfájl-regressziók
+
+A mesterséges RFC 3161-időbélyeges tesztek ellenőrzik a beágyazott időbélyeg
+külön eredményét, a hiányzó időbélyeg jelzését, az önálló dokumentum-időbélyeget,
+a hibás és nem megbízható időbélyeg elutasítását, valamint a későbbi aláíratlan
+változat lefedetlenségét. Egy 270 MiB-nál nagyobb, futáskor generált PDF valódi
+aláírása és validálása is része az integrációs tesztnek.
+
+A motor CLI-próbája ritka (sparse), érvényes PDF-fel vizsgálja a régi 256 MiB-os
+határ átlépését, a 2 GiB − 1 bájtos bemenet feldolgozását 768 MiB heap mellett,
+és a 2 GiB-os, illetve 2 GiB + 1 bájtos bemenet elutasítását. Ezek nem állítják, hogy minden
+azonos méretű vagy összetettségű PDF ugyanannyi memóriát igényel.
+
+A gyorsítótár tesztjei több tároló közös kvótáját, az induláskori lejárattörlést,
+a kéréshez kötött OCSP-tárolást és a zárolófájlok korlátját is vizsgálják.
+A Qt-próba külön ellenőrzi az érvényes, hibás és nem eldönthető időbélyeg kijelzését,
+a csak időbélyeget tartalmazó dokumentumot, valamint a 256 MiB feletti munkapéldányt.

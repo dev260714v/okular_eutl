@@ -37,7 +37,7 @@ okát ellenőrizni kell; a csomagleírás változásait ne rejtsd el helyi Git-b
 2. Futtasd a `python3 tests/verify-trust.py` parancsot.
 3. JDK 17 vagy újabb környezetben futtasd: `mvn -B -ntp -f backend/pom.xml verify`.
 4. Ellenőrizd a lefordított motort külön folyamatban is:
-   `python3 tests/engine-cli.py backend/target/okular-eutl-0.1.3.jar`.
+   `python3 tests/engine-cli.py backend/target/okular-eutl-0.1.4.jar`.
 5. A motor, a tesztek vagy a bizalmi adatok módosítása után futtasd a `python3 scripts/prepare-source.py` parancsot.
 6. Ez a szkript az elsődleges `eutldialog.h` fejlécet is beépíti az `okular-eutl.patch` fájlba.
    A generált javítást és a PKGBUILD ellenőrzőösszegeit is véglegesítsd.

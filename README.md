@@ -12,7 +12,9 @@ Nem hivatalos KDE- vagy európai bizottsági termék, és nem minősített valid
 
 ## Funkciók
 
-- PDF/PAdES-aláírások és időbélyegek ellenőrzése hitelesített EU-s és tagállami bizalmi listákkal.
+- PDF/PAdES-aláírások, beágyazott RFC 3161-időbélyegek és önálló PDF-dokumentum-időbélyegek ellenőrzése hitelesített EU-s és tagállami bizalmi listákkal.
+- Aláírásonként elkülönített aláírói időközlés és szolgáltatói időbélyeg. Az időbélyeg jelenléte, érvényessége és minősített jellege külön adat.
+- Az alapnézet csak az aláírás, az időbélyegzés és a jelenlegi PDF-lefedettség állapotát mutatja; a technikai adatok kinyithatók és exportálhatók.
 - Külön érvényességi eredmény és minősítés, beleértve a minősített és a fokozott biztonságú aláírásokat.
 - Aláírónkénti és összesített eredmény: zöld **✓ ÉRVÉNYES**, piros **✗ ÉRVÉNYTELEN**, sárga **⚠ NEM ELLENŐRIZHETŐ**.
 - Animált folyamatjelző, eltelt idő, megszakítás és kinyitható technikai részletek.
@@ -20,7 +22,7 @@ Nem hivatalos KDE- vagy európai bizottsági termék, és nem minősített valid
 - Az általános űrlapértesítés elhagyása, ha a PDF csak aláírásmezőket tartalmaz.
   A valódi űrlapokra, sértetlenségre, visszavonásra és dokumentumváltozatokra vonatkozó jelzések megmaradnak.
 - JSON- és DSS XML-jelentések mentése a motor naplójával együtt.
-- Bizalmi listák, kibocsátói tanúsítványok és aktuális visszavonási bizonyítékok gyorsítótárazása.
+- Bizalmi listák, kibocsátói tanúsítványok és aktuális visszavonási bizonyítékok közös, legfeljebb 256 MiB-os és 4096 adatfájlos gyorsítótára.
   Az ismert aláíró tanúsítványa segít kiválasztani az érintett tagállami listákat.
 - A PDF a számítógépen marad; a hálózati kérések az ellenőrzési bizonyítékokat töltik le.
 
@@ -32,12 +34,48 @@ Nem hivatalos KDE- vagy európai bizottsági termék, és nem minősített valid
 | Okular | Pontosan 26.08.2; a javítás és a forrás ellenőrzőösszege verzióhoz kötött |
 | Java | Fordításhoz JDK 17 vagy újabb; futtatáshoz Java 17 vagy újabb |
 | DSS | 6.5.1 |
-| Bemenet | Lemezre mentett helyi PDF, legfeljebb 256 MiB |
+| Bemenet | Lemezre mentett helyi PDF, legfeljebb 2 GiB − 1 bájt (2 147 483 647 bájt) |
 
 A teljes asztali integrációt a fejlesztés során a célkörnyezetben kipróbáltuk.
 A nyilvános forrás ellenőrzései a Java-motorra és a csomagkészítésre terjednek ki;
 nem igazolják minden PDF, disztribúció vagy későbbi Okular-verzió megfelelő működését.
 Egy sikeres eredmény önmagában nem jelenti azt, hogy minden aláírás lefedi a PDF összes későbbi változatát.
+
+## Időbélyegzés és lefedettség
+
+Az ellenőrzés minden felismert időbélyeget vizsgál, akkor is, ha annak használata az adott
+iratnál nem kötelező. A hiányzó időbélyeg külön figyelmeztetés, önmagában nem teszi
+érvénytelenné a kriptográfiailag érvényes aláírást. A hibás vagy nem eldönthető időbélyeg
+szintén külön eredményt kap. A szolgáltató nevét, időpontját és a DSS szerinti minősítést is kijelezzük.
+Az aláírás minősített jellege nem jelenti automatikusan az időbélyeg minősített jellegét.
+
+Az aláíró által megadott idő (`claimedSigningTime`) származhat a számítógép órájából;
+ez önmagában nem független időigazolás. A JSON eredménysémája 2-es verziójú; a motor és a felület együtt frissítendő.
+A `bestSignatureTime` a DSS belső validálási
+időadata, időbélyeg hiányában az ellenőrzési idő is lehet; nem jelenítjük meg hiteles
+aláírási időként. Az időbélyeg időpontja az általa védett adat addigi létezését igazolja,
+nem feltétlenül az aláírás létrehozásának pontos pillanatát.
+
+A jelenlegi PDF-változatot teljesen lefedő, érvényes dokumentum-időbélyeg is igazolhatja
+a lefedettséget. Ez nem helyettesíti az aláíró aláírását és nem tesz érvényessé egy hibás
+aláírást. Utólag, az időbélyeg után hozzáadott bájtokat továbbra is jelezzük.
+
+## Nagy fájlok és korlátok
+
+A legnagyobb bemenet **2 GiB − 1 bájt (2 147 483 647 bájt)**, ezt meghaladó fájlt a program elutasít.
+Az egybájtos határ oka a DSS 6.5.1 PDF-változatkezelésének előjeles, 32 bites
+bájttartomány-számítása; nem engedünk át olyan határértéket, amely túlcsordulhat. A lenyomat számítása
+folyamatos olvasással, a munkapéldány készítése háttérszálon történik. A DSS/PDFBox
+fájlalapú feldolgozást és ideiglenes lemezterületet használ; a teljes PDF-et nem töltjük
+be egyetlen bájttömbbe. A PDF szerkezetétől függően továbbra is szükséges szabad memória,
+és a munkapéldány, illetve az ideiglenes állományok számára a bemenet méretének többszöröse
+lehet szükséges a háttértáron. A Java-heap alapértelmezett korlátja 768 MiB.
+256 MiB felett az ellenőrzés időkorlátja 30 perc, kisebb PDF-eknél 5 perc;
+a munkapéldány készítése és az ellenőrzés is megszakítható.
+
+**A jelszóval védett, megnyitási jelszót igénylő PDF-ek ellenőrzését a program jelenleg
+nem támogatja, akkor sem, ha a dokumentumot az Okularban már jelszóval megnyitották.**
+A jelszó átadására vagy bekérésére nincs lehetőség.
 
 ## Fordítás és telepítés CachyOS / Arch Linux alatt
 
@@ -113,7 +151,7 @@ de **minden új dokumentum és aláírás külön ellenőrzésen megy át**.
 - Aktuális bizalmi listák: legfeljebb hat órán át használhatók újra, az aláírt `NextUpdate` időpontjáig.
 - Tagállami listák és LOTL: az aláírásukat és a bizalmi kapcsolataikat minden használatkor újra ellenőrzi a motor.
 - Letöltött kibocsátói tanúsítványok: legfeljebb 30 napig tárolhatók újrafelhasználásra; érvényességüket továbbra is a DSS értékeli.
-- OCSP/CRL-bizonyítékok: csak a beállított DSS-szabályok szerinti frissességük idején használhatók újra.
+- OCSP/CRL-bizonyítékok: legfeljebb 5 percig tárolhatók újrafelhasználhatóan; a DSS ezen belül is ellenőrzi az érvényességet és a frissességet. Az OCSP-kulcs a URL és a teljes kérés lenyomata.
 - Korábban érvényes aláírói tanúsítványok: kizárólag a tanúsítványlánc felépítését segítik, nem válnak feltétlen bizalmi ponttá.
   Csak az aktuális dokumentumhoz pontosan illeszkedő tanúsítványok töltődnek be; 30 nap után nem használhatók újra.
   Sikeres íráskor a motor a legrégebbi bejegyzések törlésével legfeljebb 256 tanúsítványra és 16 MiB-ra
@@ -135,11 +173,11 @@ a gyorsítótár kézi törlése előtt zárd be az Okulart.
 python3 tests/verify-trust.py
 python3 tests/test-packaging.py
 mvn -B -ntp -f backend/pom.xml verify
-python3 tests/engine-cli.py backend/target/okular-eutl-0.1.3.jar
+python3 tests/engine-cli.py backend/target/okular-eutl-0.1.4.jar
 ```
 
 A Maven-csoportazonosító és a Java-névtér `org.okulareutl`.
-A függőségeket is tartalmazó kimeneti JAR: `backend/target/okular-eutl-0.1.3.jar`.
+A függőségeket is tartalmazó kimeneti JAR: `backend/target/okular-eutl-0.1.4.jar`.
 A generált bináris fájlok nem kerülnek a Git-tárolóba.
 
 Az egységtesztek a bizalmi listák elfogadását, a gyorsítótár lejáratát, sérülését és párhuzamos
@@ -156,7 +194,7 @@ A vizsgálatok korlátait az [ellenőrzési leírás](docs/VALIDATION.md) részl
 Már telepített integrációnál csak a motor cseréjéhez először fordítsd le az új változatot, majd:
 
 ```sh
-sudo install -m 644 backend/target/okular-eutl-0.1.3.jar /usr/share/okular-eutl/engine.jar
+sudo install -m 644 backend/target/okular-eutl-0.1.4.jar /usr/share/okular-eutl/engine.jar
 sudo install -m 755 okular-eutl-engine /usr/bin/okular-eutl-engine
 ```
 
@@ -168,7 +206,7 @@ futtasd újra a `scripts/prepare-source.py` szkriptet. Ez a felület fejlécét 
 
 - Csak lemezre mentett helyi PDF/PAdES-fájlok; nincs ASiC/XAdES- vagy külön CAdES-felület.
 - Titkosított PDF-ekhez nincs beépített jelszóbekérés.
-- A felület öt perc után megszakítja az ellenőrzést; a JVM memóriakerete legfeljebb 768 MiB.
+- A felület kisebb PDF-eknél öt, 256 MiB felett harminc perc után megszakítja az ellenőrzést; a JVM memóriakerete legfeljebb 768 MiB.
 - A bizonyítékok címeinek HTTP(S)-t kell használniuk, és átirányításkor is kizárólag nyilvános címekre szabad feloldódniuk.
   A motor kapcsolódáskor tiltja a visszacsatolási, magán-, helyi kapcsolati, fenntartott és nem globális címeket.
   Legfeljebb öt átirányítás engedélyezett; HTTPS-ről HTTP-re visszalépés és nem egyértelmű POST-átirányítás nem.
