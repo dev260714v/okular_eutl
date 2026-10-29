@@ -1,5 +1,13 @@
 # Okular EUTL
 
+❗❗**Figyelem! Ez egy AI által készült vibe-code projekt. A kód hibákat tartalmazhat.** ❗❗
+
+Aláírt PDF                 | EU-s ellenőrzés kezdete   | EU-s ellenőrzés eredménye
+:-------------------------:|:-------------------------:|:-------------------------:
+![Aláírt PDF ](readmeimgs/001.png)    | ![EU-s ellenőrzés kezdete](readmeimgs/002.png)   | ![EU-s ellenőrzés eredménye](readmeimgs/003.png)
+
+
+
 Az **Okular 26.08.2-be integrált, helyben futó EU-s aláírás-ellenőrzés**, az Európai
 Bizottság **Digital Signature Services (DSS) 6.5.1** könyvtárával.
 
