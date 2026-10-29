@@ -11,6 +11,12 @@ A `makepkg` által letöltött `okular-*.tar.xz` forrásarchívumot és a hozzá
 `okular-*.tar.xz.sig` aláírást a `.gitignore` kizárja. A generált motorarchívum,
 a lefordított csomagok és a fordítási könyvtárak sem kerülnek a tárolóba.
 
+A motor forráscsomagja `engine-source.tar`, tömörítés nélkül. Így a helyi zlib vagy
+zlib-ng eltérő tömörítési eredménye nem változtatja meg a csomag ellenőrzőösszegét.
+A korábban létrehozott `engine-source.tar.gz` figyelmen kívül hagyható vagy törölhető;
+az új csomagleírás már nem használja. A megismételhetőséget a
+`python3 tests/test-packaging.py` parancs ellenőrzi.
+
 A `PKGBUILD` viszont követett forrásfájl: a verziókat, függőségeket és ellenőrzőösszegeket
 is tartalmazza, ezért nem zárjuk ki. A `.gitignore` egy már követett fájl módosításait
 egyébként sem rejtené el. A `scripts/prepare-source.py` a generált forráscsomag alapján
@@ -22,7 +28,7 @@ git diff -- PKGBUILD
 
 Módosítatlan forrás és azonos csomagkészítési környezet esetén az előkészítés nem okozhat
 tartalmi eltérést a már megfelelő ellenőrzőösszegeket tartalmazó `PKGBUILD` fájlban.
-Forrásmódosítás, eltérő helyi csomagtartalom vagy tömörítési környezet esetén az eltérés
+Forrásmódosítás vagy eltérő helyi csomagtartalom esetén az eltérés
 okát ellenőrizni kell; a csomagleírás változásait ne rejtsd el helyi Git-beállítással.
 
 ## A módosítások ellenőrzése

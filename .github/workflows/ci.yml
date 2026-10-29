@@ -35,8 +35,9 @@ jobs:
         run: |
           bash -n PKGBUILD
           sh -n okular-eutl-engine
+          python3 tests/test-packaging.py
           python3 scripts/prepare-source.py
-          sha256sum engine-source.tar.gz > /tmp/first-source.sha256
+          sha256sum engine-source.tar > /tmp/first-source.sha256
           python3 scripts/prepare-source.py
           sha256sum -c /tmp/first-source.sha256
           git diff --exit-code -- PKGBUILD okular-eutl.patch

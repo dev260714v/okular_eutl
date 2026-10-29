@@ -54,6 +54,10 @@ biztosítja az `okular` csomagot, és lecseréli a disztribúció `okular` csoma
 A fordítás keres egy telepített JDK 17 vagy újabb környezetet akkor is, ha a rendszer
 alapértelmezett Java-környezete egy régebbi JRE. Az első Maven-fordításhoz internetkapcsolat kell a függőségek letöltéséhez.
 
+Az előkészítés tömörítetlen `engine-source.tar` motorforráscsomagot készít. Így a zlib és
+zlib-ng eltérő tömörítési eredménye nem okoz gépenként eltérő ellenőrzőösszeget a `PKGBUILD` fájlban.
+A régi `engine-source.tar.gz` már nem része a fordításnak; törölhető vagy figyelmen kívül hagyható.
+
 A csomagkészítés ellenőrzi a hivatalos Okular-forrásarchívum ellenőrzőösszegét és kiadási aláírását.
 Ha az aláírókulcs hiányzik, importálás előtt vesd össze a teljes ujjlenyomatot a
 [KDE kiadási oldalával](https://kde.org/info/releases-26.08.2/).
@@ -129,6 +133,7 @@ a gyorsítótár kézi törlése előtt zárd be az Okulart.
 
 ```sh
 python3 tests/verify-trust.py
+python3 tests/test-packaging.py
 mvn -B -ntp -f backend/pom.xml verify
 python3 tests/engine-cli.py backend/target/okular-eutl-0.1.3.jar
 ```

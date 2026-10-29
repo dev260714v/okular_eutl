@@ -11,13 +11,13 @@ if (root / ".git").exists():
     names = subprocess.check_output(["git", "ls-files", "-z"], cwd=root).decode().split("\0")
     files = [root / name for name in names if name]
 else:
-    files = [p for p in root.rglob("*") if p.is_file() and not any(x in p.parts for x in ("target", ".git", "__pycache__")) and p.name != "engine-source.tar.gz"]
+    files = [p for p in root.rglob("*") if p.is_file() and not any(x in p.parts for x in ("target", ".git", "__pycache__")) and p.name not in {"engine-source.tar", "engine-source.tar.gz"}]
 errors = []
 for path in files:
     name = path.relative_to(root).as_posix()
     lower = name.lower()
     if path.is_symlink(): errors.append((name, "symbolic link")); continue
-    if path.suffix.lower() in {".pdf", ".jar", ".class", ".zip", ".p12", ".pfx", ".key", ".jks", ".log", ".gz"}:
+    if path.suffix.lower() in {".pdf", ".jar", ".class", ".zip", ".p12", ".pfx", ".key", ".jks", ".log", ".gz", ".tar"}:
         errors.append((name, "private input, credential or generated binary"))
     if path.name in {"result.json", "simple-report.xml", "detailed-report.xml", "diagnostic-data.xml", "etsi-report.xml"}:
         errors.append((name, "validation report"))

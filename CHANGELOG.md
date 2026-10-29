@@ -1,7 +1,10 @@
 # Változásnapló
 
-## Kiadásra előkészített dokumentációs módosítások
+## Kiadásra előkészített módosítások
 
+- A motor forráscsomagja tömörítetlen `engine-source.tar` lett. Ez megszünteti a zlib és
+  zlib-ng eltérő gzip-kimenetéből adódó, azonos forrástartalom melletti ellenőrzőösszeg-eltérést.
+  Csomagkészítési regressziós teszt ellenőrzi a megismételhetőséget és a forrásmódosítások felismerését.
 - A `.gitignore` kizárja a `makepkg` által letöltött Okular-forrásarchívumot és kiadási
   aláírását is. A közreműködési útmutató tisztázza, hogy a `PKGBUILD` követett forrásfájl marad.
 - Az összes saját útmutató és tájékoztató magyar nyelvű: a főoldali leírás, a változásnapló,
