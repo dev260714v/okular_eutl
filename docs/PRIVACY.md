@@ -47,3 +47,9 @@ A forrástárolóból kizárjuk a magándokumentumokat, a valódi üzemi tesztad
 jelentéseket, a géphez kötött személyes elérési utakat, a hitelesítési adatokat és a generált
 fejlesztői binárisokat. Csak mesterséges példák és nyilvános EU-s bizalmi tanúsítványok szerepelnek benne.
 Új fájl véglegesítése előtt futtasd a `scripts/audit-public.py` szkriptet, és kézzel is vizsgáld át a tartalmat.
+
+A közös gyorsítótár legfeljebb 256 MiB és 4096 adatfájl; induláskor és minden
+írás előtt törli a lejárt, szükség esetén a legrégebbi adatokat. Az OCSP/CRL
+válaszok legfeljebb öt percig használhatók újra, további DSS-validálás mellett.
+Az OCSP-válasz kulcsa a célcímhez és a teljes kéréshez kötött. A zároláshoz
+legfeljebb 65 állandó fájl szükséges, nem hozunk létre URL-enként új zárfájlt.

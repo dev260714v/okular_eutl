@@ -1,6 +1,33 @@
 # Változásnapló
 
-## Kiadásra előkészített módosítások
+## 0.1.4, 8. csomagkiadás – Ellenőrzött technikai többlet
+
+- Szűk, verziózott engedélylista a PDF utáni üres karakterekre és UUID MIME-záróhatárolóra.
+- Érvényes aláírás mellett zöld eredmény és kék információs jelzés; az export megőrzi a részleges bájtlefedettséget és az eltérés adatait.
+- Ismeretlen változások továbbra is figyelmeztetést kapnak; regressziós és integrációs tesztek.
+
+## 0.1.4, 7. csomagkiadás – Okular fordítási kompatibilitás
+
+- A felület összes QString-adatánál kifejezett szövegliterálokat használunk,
+  így az Okular szigorú Qt-fordítási beállításaival is fordítható.
+- A Qt6-regressziós teszt és a CI az automatikus ASCII/QString és
+  QByteArray/QString átalakítások tiltásával fordul, hogy ezt a hibát jelezze.
+
+## 0.1.4 – Időbélyegzés, nagy PDF-ek és korlátozott gyorsítótár
+
+- A beágyazott, dokumentum- és archiválási időbélyegek önálló eredménye, szolgáltatója,
+  időpontja és minősítése megjelenik. A megadott aláírási idő külön, nem hiteles időközlés.
+- Az érvényes dokumentum-időbélyeg bekerül a jelenlegi PDF-lefedettség összesítésébe;
+  a csak időbélyeget tartalmazó PDF-ek is ellenőrizhetők.
+- Egyszerűbb alapnézet, változatlanul kinyitható JSON-részletek és exportálható DSS-jelentések.
+- Folyamatos fájlolvasás, fájlalapú PDFBox-feldolgozás és megszakítható háttérmásolás,
+  a DSS 32 bites eltolásai miatt legfeljebb 2 GiB − 1 bájtos bemenettel.
+- A hálózati bizonyítékok közös gyorsítótára legfeljebb 256 MiB és 4096 adatfájl.
+  A lejárt és a legrégebbi bejegyzések törlődnek; a zárolófájlok száma korlátos.
+  Az OCSP-kulcs a teljes kéréshez kötött, a CRL/OCSP újrafelhasználása legfeljebb 5 perc.
+- A README rögzíti a jelszóval védett PDF-ek támogatásának hiányát.
+
+## Kiadásra előkészített korábbi módosítások
 
 - A motor forráscsomagja tömörítetlen `engine-source.tar` lett. Ez megszünteti a zlib és
   zlib-ng eltérő gzip-kimenetéből adódó, azonos forrástartalom melletti ellenőrzőösszeg-eltérést.

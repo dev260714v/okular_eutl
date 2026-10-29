@@ -22,4 +22,8 @@ class DocumentCoverageTest {
         assertEquals("FULL",DocumentCoverage.summarize(signatures).get("status"));
     }
     @Test void missingCoverageRemainsUnknown() { assertEquals("UNKNOWN", DocumentCoverage.summarize(List.of(Map.of("id","x","indication","TOTAL_PASSED"))).get("status")); }
+    @Test void nearTwoGiBCoverageDoesNotOverflow() {
+        assertEquals("FULL", DocumentCoverage.signature(range(0,2147470000L,2147480000L,3647), true, Integer.MAX_VALUE));
+    }
+
 }

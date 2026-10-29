@@ -5,6 +5,9 @@ vizsgálja a nyilvános forrást és a rögzített bizalmi tanúsítvány-ujjlen
 valamint ellenőrzi a megismételhető csomagkészítést és az elsődleges felületi fejléc
 szinkronját a telepítendő Okular-javítással.
 Külön automatikus feladat fordítja és képernyő nélkül futtatja a Qt6-párbeszédablak tesztjét.
+A fordítás tiltja az automatikus ASCII/QString és QByteArray/QString konverziókat
+(`QT_NO_CAST_FROM_ASCII`, `QT_NO_CAST_TO_ASCII`, `QT_NO_CAST_FROM_BYTEARRAY`),
+az Okular/KDE szigorú szövegkezelési követelményeinek ellenőrzésére.
 A függőségekkel egyesített JAR külön folyamatként is elindul generált, aláírás nélküli és
 hibás PDF-ekkel: a teszt ellenőrzi a kilépési kódot, a JSON-állapotot és a bemeneti fájl lenyomatát.
 
@@ -50,3 +53,21 @@ a céldisztribúcióban, és nem tanúsítják minden PDF megfelelő kezelését
 Az EU-s bizalmi beállításokat, a visszavonási adatok frissességét, a korábbi időpontra
 vonatkozó ellenőrzést és a minősített aláírási státusz értelmezését karban kell tartani és felül kell vizsgálni.
 Hiányzó bizonyítékból megalapozás nélkül nem válhat sikeres vagy érvénytelen eredmény.
+
+## Időbélyeg- és nagyfájl-regressziók
+
+A mesterséges RFC 3161-időbélyeges tesztek ellenőrzik a beágyazott időbélyeg
+külön eredményét, a hiányzó időbélyeg jelzését, az önálló dokumentum-időbélyeget,
+a hibás és nem megbízható időbélyeg elutasítását, valamint a későbbi aláíratlan
+változat lefedetlenségét. Egy 270 MiB-nál nagyobb, futáskor generált PDF valódi
+aláírása és validálása is része az integrációs tesztnek.
+
+A motor CLI-próbája ritka (sparse), érvényes PDF-fel vizsgálja a régi 256 MiB-os
+határ átlépését, a 2 GiB − 1 bájtos bemenet feldolgozását 768 MiB heap mellett,
+és a 2 GiB-os, illetve 2 GiB + 1 bájtos bemenet elutasítását. Ezek nem állítják, hogy minden
+azonos méretű vagy összetettségű PDF ugyanannyi memóriát igényel.
+
+A gyorsítótár tesztjei több tároló közös kvótáját, az induláskori lejárattörlést,
+a kéréshez kötött OCSP-tárolást és a zárolófájlok korlátját is vizsgálják.
+A Qt-próba külön ellenőrzi az érvényes, hibás és nem eldönthető időbélyeg kijelzését,
+a csak időbélyeget tartalmazó dokumentumot, valamint a 256 MiB feletti munkapéldányt.
