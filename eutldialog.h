@@ -44,7 +44,8 @@ inline QString overallIndication(const QJsonArray &signatures, const QJsonObject
         if (indication == QStringLiteral("TOTAL_FAILED")) return QStringLiteral("TOTAL_FAILED");
         if (indication != QStringLiteral("TOTAL_PASSED")) unknown = true;
     }
-    return unknown || coverage.value(QStringLiteral("status")).toString() != QStringLiteral("FULL")
+    return unknown || (coverage.value(QStringLiteral("status")).toString() != QStringLiteral("FULL")
+        && coverage.value(QStringLiteral("assessment")).toString() != QStringLiteral("TECHNICAL_ONLY"))
         ? QStringLiteral("INDETERMINATE") : QStringLiteral("TOTAL_PASSED");
 }
 inline QString badge(const QString &indication) {
@@ -276,7 +277,8 @@ private:
         showVerdict(EutlUi::overallIndication(signatures, coverage));
         if (signatures.isEmpty()) showVerdict(QStringLiteral("INDETERMINATE"), QStringLiteral("⚠ NINCS FELISMERT ALÁÍRÁS"));
         else if (EutlUi::overallIndication(signatures, QJsonObject{{QStringLiteral("status"), QStringLiteral("FULL")}}) == QStringLiteral("TOTAL_PASSED")
-                 && coverageStatus != QStringLiteral("FULL"))
+                 && coverageStatus != QStringLiteral("FULL")
+                 && coverage.value(QStringLiteral("assessment")).toString() != QStringLiteral("TECHNICAL_ONLY"))
             showVerdict(QStringLiteral("INDETERMINATE"), QStringLiteral("⚠ A JELENLEGI PDF LEFEDETTSÉGE NEM IGAZOLT"));
         bool failedTimestamp = false, unknownTimestamp = false;
         for (const auto &value : timestamps) {
@@ -328,6 +330,9 @@ private:
             const bool timestampCoverage = !coverage.value(QStringLiteral("coveringTimestampIds")).toArray().isEmpty();
             html += timestampCoverage ? QStringLiteral("<p>✓ A jelenlegi PDF-változatot érvényes dokumentum-időbélyeg védi.</p>")
                 : QStringLiteral("<p>✓ A jelenlegi PDF-változatot érvényes aláírás lefedi.</p>");
+        } else if (coverage.value(QStringLiteral("assessment")).toString() == QStringLiteral("TECHNICAL_ONLY")) {
+            html += QStringLiteral("<p style='color:#1565c0'>ⓘ A PDF lezárása után %1 bájt felismert technikai többlet található. Az aláírás érvényes; a többlet nem része az aláírt adatoknak. Részletek az exportált jelentésben.</p>")
+                .arg(coverage.value(QStringLiteral("technicalTail")).toObject().value(QStringLiteral("unsignedBytes")).toInt());
         } else if (!signatures.isEmpty() || !timestamps.isEmpty()) {
             html += QStringLiteral("<p><b>⚠ A jelenlegi PDF teljes lefedettsége nem igazolt. Az aláírás vagy időbélyeg korábbi változatra vonatkozhat.</b></p>");
         }

@@ -122,6 +122,16 @@ class PdfValidationIntegrationTest {
         assertEquals(Indication.TOTAL_PASSED,result.get("indication"));assertEquals("FULL",result.get("coverage"));
         assertEquals("FULL",DocumentCoverage.summarize(List.of(result)).get("status"));
     }
+    @Test void validSignatureWithAllowlistedTailGetsTechnicalAssessment() throws Exception {
+        byte[] suffix="\r\n--ddb3b78a-ecf1-4b7e-96d8-31c4b59f7d20--\r\nEOF\r\n".getBytes(StandardCharsets.US_ASCII);
+        byte[] appended=Arrays.copyOf(signed,signed.length+suffix.length);
+        System.arraycopy(suffix,0,appended,signed.length,suffix.length);
+        var signature=signatureResult(appended,validate(appended,verifier(true,false)));
+        assertEquals(Indication.TOTAL_PASSED,signature.get("indication"));
+        var path=cacheDir.resolve("technical-tail.pdf");java.nio.file.Files.write(path,appended);
+        var coverage=TechnicalTail.apply(path,List.of(signature),DocumentCoverage.summarize(List.of(signature)));
+        assertEquals("PARTIAL",coverage.get("status"));assertEquals("TECHNICAL_ONLY",coverage.get("assessment"));
+    }
     @Test void tamperedCoveredBytesFailHashEvenAfterSignerIsCached() throws Exception {
         var store=new CacheStore(cacheDir);store.rememberSigner(new CertificateToken(signer));
         byte[] modified=signed.clone();byte[] marker="SYNTHETIC_MARKER_A".getBytes(StandardCharsets.US_ASCII);

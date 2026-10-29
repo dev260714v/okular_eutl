@@ -34,7 +34,8 @@ int main(int argc, char **argv) {
         }
         root[QStringLiteral("timestamps")] = timestamps;
         root[QStringLiteral("signatures")] = signatures;
-        if (!bytes.contains("NO_COVERAGE")) root[QStringLiteral("documentCoverage")] = QJsonObject{{QStringLiteral("status"), bytes.contains("PARTIAL") ? QStringLiteral("PARTIAL") : bytes.contains("COVERAGE_UNKNOWN") ? QStringLiteral("UNKNOWN") : QStringLiteral("FULL")}};
+        if (bytes.contains("TECHNICAL")) root[QStringLiteral("documentCoverage")] = QJsonObject{{QStringLiteral("status"), QStringLiteral("PARTIAL")}, {QStringLiteral("assessment"), QStringLiteral("TECHNICAL_ONLY")}, {QStringLiteral("technicalTail"), QJsonObject{{QStringLiteral("unsignedBytes"), 49}}}};
+        else if (!bytes.contains("NO_COVERAGE")) root[QStringLiteral("documentCoverage")] = QJsonObject{{QStringLiteral("status"), bytes.contains("PARTIAL") ? QStringLiteral("PARTIAL") : bytes.contains("COVERAGE_UNKNOWN") ? QStringLiteral("UNKNOWN") : QStringLiteral("FULL")}};
         if (bytes.contains("LEGACY_SCHEMA")) root[QStringLiteral("schema")]=1;
         if (bytes.contains("WRONG_HASH")) root[QStringLiteral("sha256")]=QStringLiteral("wrong");
         QFile out(QString::fromLocal8Bit(argv[2])+QStringLiteral("/result.json"));out.open(QIODevice::WriteOnly);
@@ -55,7 +56,7 @@ int main(int argc, char **argv) {
     QTemporaryDir temp;
     if (qEnvironmentVariableIsSet("EUTL_UI_SCREENSHOTS")) { temp.setAutoRemove(false); std::cout << "Screenshots: " << temp.path().toStdString() << std::endl; }
     try {
-        for (const auto &mode : {"VALID", "INVALID", "UNKNOWN", "MIXED", "EMPTY", "BAD_JSON", "WRONG_HASH", "PARTIAL", "NO_COVERAGE", "COVERAGE_UNKNOWN", "TS_VALID", "TS_INVALID", "TS_UNKNOWN", "TS_ONLY", "LEGACY_SCHEMA", "OVERSIZED", "LARGE"}) {
+        for (const auto &mode : {"VALID", "TECHNICAL", "INVALID", "UNKNOWN", "MIXED", "EMPTY", "BAD_JSON", "WRONG_HASH", "PARTIAL", "NO_COVERAGE", "COVERAGE_UNKNOWN", "TS_VALID", "TS_INVALID", "TS_UNKNOWN", "TS_ONLY", "LEGACY_SCHEMA", "OVERSIZED", "LARGE"}) {
             const QString only = qEnvironmentVariable("EUTL_UI_CASE");
             if (!only.isEmpty() && only != QString::fromLatin1(mode)) continue;
             const QString file=temp.filePath(QString::fromLatin1(mode)+QStringLiteral(".pdf"));
@@ -94,6 +95,7 @@ int main(int argc, char **argv) {
                 if (qEnvironmentVariableIsSet("EUTL_UI_SCREENSHOTS")) { app.processEvents(); dialog.grab().save(temp.filePath(QStringLiteral("valid.png"))); }
             } else if (QString::fromLatin1(mode)== QStringLiteral("INVALID")) require(text==QStringLiteral("✗ ÉRVÉNYTELEN"),"invalid verdict incorrect");
             else if (QString::fromLatin1(mode)== QStringLiteral("EMPTY")) require(text.contains(QStringLiteral("NINCS FELISMERT")),"unsigned file shown as valid");
+            else if (QString::fromLatin1(mode)== QStringLiteral("TECHNICAL")) require(text==QStringLiteral("✓ ÉRVÉNYES") && dialog.findChild<QTextBrowser *>(QStringLiteral("eutl_summary"))->toPlainText().contains(QStringLiteral("49 bájt")),"technical tail information missing");
             else if (QString::fromLatin1(mode)== QStringLiteral("PARTIAL") || QString::fromLatin1(mode)== QStringLiteral("NO_COVERAGE") || QString::fromLatin1(mode)== QStringLiteral("COVERAGE_UNKNOWN")) require(text.contains(QStringLiteral("LEFEDETTSÉGE NEM IGAZOLT")),"coverage warning missing");
             else require(text==QStringLiteral("⚠ NEM ELLENŐRIZHETŐ"),"incomplete result shown as conclusive");
             std::cout << mode << ": OK\n";

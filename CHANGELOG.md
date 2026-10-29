@@ -1,5 +1,11 @@
 # Változásnapló
 
+## 0.1.4, 8. csomagkiadás – Ellenőrzött technikai többlet
+
+- Szűk, verziózott engedélylista a PDF utáni üres karakterekre és UUID MIME-záróhatárolóra.
+- Érvényes aláírás mellett zöld eredmény és kék információs jelzés; az export megőrzi a részleges bájtlefedettséget és az eltérés adatait.
+- Ismeretlen változások továbbra is figyelmeztetést kapnak; regressziós és integrációs tesztek.
+
 ## 0.1.4, 7. csomagkiadás – Okular fordítási kompatibilitás
 
 - A felület összes QString-adatánál kifejezett szövegliterálokat használunk,
