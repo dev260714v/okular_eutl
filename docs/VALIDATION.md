@@ -8,6 +8,9 @@ Külön automatikus feladat fordítja és képernyő nélkül futtatja a Qt6-pá
 A fordítás tiltja az automatikus ASCII/QString és QByteArray/QString konverziókat
 (`QT_NO_CAST_FROM_ASCII`, `QT_NO_CAST_TO_ASCII`, `QT_NO_CAST_FROM_BYTEARRAY`),
 az Okular/KDE szigorú szövegkezelési követelményeinek ellenőrzésére.
+A felületi teszt külön normál és `QT_USE_QSTRINGBUILDER` / `QT_USE_FAST_OPERATOR_PLUS`
+módban is fordul és fut. Ez ellenőrzi, hogy a lusta szövegösszefűzés eredménye nem
+kerül közvetlenül olyan inicializálólistába, amely valódi QString/QJsonValue értéket vár.
 A függőségekkel egyesített JAR külön folyamatként is elindul generált, aláírás nélküli és
 hibás PDF-ekkel: a teszt ellenőrzi a kilépési kódot, a JSON-állapotot és a bemeneti fájl lenyomatát.
 

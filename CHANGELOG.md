@@ -1,5 +1,11 @@
 # Változásnapló
 
+## 0.1.4, 10. csomagkiadás – QStringBuilder-fordítás javítása
+
+- A technikai összefoglaló azonosítója közvetlen QString-értékként kerül a JSON-objektumba; nem marad lusta QStringBuilder-kifejezés az inicializálólistában.
+- A Qt6-felületteszt normál módban és az Okular/KDE QStringBuilder-beállításaival is fordul és fut.
+- A generált Okular-javítás és a csomag ellenőrzőösszegei frissítve.
+
 ## 0.1.4, 9. csomagkiadás – Információs jelzések és hibaexport
 
 - Az utólagos dokumentum-időbélyeggel lefedett PDF külön kék információs sávot kap, ha az érvényes aláírás csak korábbi változatra vonatkozik.

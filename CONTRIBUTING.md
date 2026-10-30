@@ -51,7 +51,7 @@ sikeres ellenőrzésként. A gyorsítótárban tárolt aláírót ne emeld bizal
 A kizárólag felületi teszt a Qt6 fejlesztői csomagjaival fordítható:
 
 ```sh
-c++ -std=c++17 -fPIC -DQT_NO_CAST_FROM_ASCII -DQT_NO_CAST_TO_ASCII -DQT_NO_CAST_FROM_BYTEARRAY -I. tests/ui-smoke.cpp $(pkg-config --cflags --libs Qt6Widgets) -o /tmp/okular-eutl-ui-test
+c++ -std=c++17 -fPIC -DQT_USE_QSTRINGBUILDER -DQT_USE_FAST_OPERATOR_PLUS -DQT_NO_CAST_FROM_ASCII -DQT_NO_CAST_TO_ASCII -DQT_NO_CAST_FROM_BYTEARRAY -I. tests/ui-smoke.cpp $(pkg-config --cflags --libs Qt6Widgets) -o /tmp/okular-eutl-ui-test
 QT_QPA_PLATFORM=offscreen /tmp/okular-eutl-ui-test
 ```
 
@@ -60,6 +60,9 @@ A Java-integrációs tesztek futás közben generálják az összes tesztkulcsot
 CRL-t, RFC3161-időbélyeget és aláírt PDF-et. A mesterséges teszthitelesítő nem válik az alkalmazás bizalmi pontjává.
 A hálózati tesztek saját DNS- és címengedélyezési szabályt adnak a helyi HTTP-tesztkiszolgálónak;
 ez a tesztbeállítás futtatási konfigurációval nem kapcsolható be.
+
+A CI a felületet normál QString-módban és a KDE-féle `QT_USE_QSTRINGBUILDER` /
+`QT_USE_FAST_OPERATOR_PLUS` beállításokkal is lefordítja és futtatja.
 
 A Java-tesztek és a képernyő nélküli párbeszédablak-tesztek nem helyettesítik a teljes,
 javított Okular lefordítását és kézi asztali kipróbálását.

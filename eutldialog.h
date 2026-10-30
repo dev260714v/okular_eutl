@@ -97,7 +97,7 @@ inline QJsonObject technicalSummary(const QJsonObject &root) {
         QJsonArray result;
         for (int i = 0; i < items.size(); ++i) {
             const auto source = items[i].toObject();
-            QJsonObject item{{QStringLiteral("id"), prefix + QString::number(i + 1)}};
+            QJsonObject item{{QStringLiteral("id"), QStringLiteral("%1%2").arg(prefix).arg(i + 1)}};
             tokens(source, item, {QStringLiteral("indication"), QStringLiteral("subIndication"), QStringLiteral("qualification"), QStringLiteral("coverage"), QStringLiteral("type")});
             numbers(source, item, {QStringLiteral("signedRevisionEnd"), QStringLiteral("messageImprintFound"), QStringLiteral("messageImprintIntact"), QStringLiteral("coversSignature"), QStringLiteral("documentTimestamp")});
             for (const auto &key : {QStringLiteral("errors"), QStringLiteral("warnings"), QStringLiteral("qualificationErrors"), QStringLiteral("qualificationWarnings")}) {

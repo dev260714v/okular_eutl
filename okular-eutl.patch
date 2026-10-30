@@ -1,6 +1,6 @@
 diff --git a/part/eutldialog.h b/part/eutldialog.h
 new file mode 100644
-index 0000000..54c4e0b
+index 0000000..b687ac5
 --- /dev/null
 +++ b/part/eutldialog.h
 @@ -0,0 +1,533 @@
@@ -103,7 +103,7 @@ index 0000000..54c4e0b
 +        QJsonArray result;
 +        for (int i = 0; i < items.size(); ++i) {
 +            const auto source = items[i].toObject();
-+            QJsonObject item{{QStringLiteral("id"), prefix + QString::number(i + 1)}};
++            QJsonObject item{{QStringLiteral("id"), QStringLiteral("%1%2").arg(prefix).arg(i + 1)}};
 +            tokens(source, item, {QStringLiteral("indication"), QStringLiteral("subIndication"), QStringLiteral("qualification"), QStringLiteral("coverage"), QStringLiteral("type")});
 +            numbers(source, item, {QStringLiteral("signedRevisionEnd"), QStringLiteral("messageImprintFound"), QStringLiteral("messageImprintIntact"), QStringLiteral("coversSignature"), QStringLiteral("documentTimestamp")});
 +            for (const auto &key : {QStringLiteral("errors"), QStringLiteral("warnings"), QStringLiteral("qualificationErrors"), QStringLiteral("qualificationWarnings")}) {
