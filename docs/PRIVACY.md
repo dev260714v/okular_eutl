@@ -53,3 +53,16 @@ A közös gyorsítótár legfeljebb 256 MiB és 4096 adatfájl; induláskor és 
 válaszok legfeljebb öt percig használhatók újra, további DSS-validálás mellett.
 Az OCSP-válasz kulcsa a célcímhez és a teljes kéréshez kötött. A zároláshoz
 legfeljebb 65 állandó fájl szükséges, nem hozunk létre URL-enként új zárfájlt.
+
+## Szűrt technikai összefoglaló
+
+A `summary.json` és `summary.txt` engedélylistás export: csak technikai állapotokat,
+minősítéseket, bájtlefedettséget, hibakódokat, sorszámozott kapcsolatokat, bizalmi
+listák állapotát és futási/cache-adatokat tartalmaz. A szabad szöveges DSS-üzenetek,
+aláírónevek, eredeti belső azonosítók, tanúsítványtartalom, URL-ek és helyi útvonalak
+kimaradnak. Dokumentumhoz kötött műszaki adatok szerepelnek benne, ezért nem állítunk
+formális anonimitást. Az eredeti JSON/XML-jelentések és az `engine.log` továbbra is
+személyes adatot tartalmazó részletes diagnosztikák lehetnek.
+
+Hiba után is menthető a rendelkezésre álló diagnosztika, a hibás vagy részleges
+motorválasz is; a technikai összefoglaló külön jelzi a futás sikertelenségét.

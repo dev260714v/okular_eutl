@@ -321,4 +321,37 @@ class PdfValidationIntegrationTest {
         assertFalse(((List<?>)signatureResult(timestamped, reports).get("timestampIds")).isEmpty());
         assertNotNull(timestamps.get(0).get("productionTime"));
     }
+    @Test void visibleUnsignedChangesThenTimestampAreDisclosed() throws Exception {
+        byte[] revision;
+        try (var document=Loader.loadPDF(signed);var out=new ByteArrayOutputStream()) {
+            var page=document.getPage(0);
+            try (var content=new PDPageContentStream(document,page,PDPageContentStream.AppendMode.APPEND,true)) {
+                content.addRect(30,30,200,200);content.fill();
+            }
+            page.getCOSObject().setNeedToBeUpdated(true);document.saveIncremental(out);revision=out.toByteArray();
+        }
+        var input=documentTimestamp(revision);var reports=validate(input,verifier(true,false));
+        var signatures=Main.signatureResults(reports,input.length);var timestamps=TimestampResults.collect(reports,input.length);
+        assertEquals(Indication.TOTAL_PASSED,signatures.get(0).get("indication"));
+        assertEquals("PARTIAL",signatures.get(0).get("coverage"));
+        var path=cacheDir.resolve("timestamped-changes.pdf");java.nio.file.Files.write(path,input);
+        var coverage=TechnicalTail.apply(path,signatures,DocumentCoverage.summarize(signatures,timestamps));
+        assertEquals("FULL",coverage.get("status"));assertEquals("TIMESTAMP_ONLY",coverage.get("assessment"));
+        assertFalse(((List<?>)coverage.get("earlierSignatureIds")).isEmpty());
+    }
+    @Test void cacheInitializationFailureProducesErrorResultInRealProcess() throws Exception {
+        var input=cacheDir.resolve("cache-failure.pdf");java.nio.file.Files.write(input,signed);
+        var output=java.nio.file.Files.createDirectory(cacheDir.resolve("output"));
+        var blocked=cacheDir.resolve("blocked-cache");java.nio.file.Files.writeString(blocked,"not a directory");
+        var javaCommand=Path.of(System.getProperty("java.home"),"bin","java").toString();
+        var process=new ProcessBuilder(javaCommand,"-Dokular.eutl.cacheDir="+blocked,
+            "-cp",System.getProperty("surefire.test.class.path",System.getProperty("java.class.path")),
+            Main.class.getName(),input.toString(),output.toString(),Path.of("..","trust").toString())
+            .redirectErrorStream(true).redirectOutput(cacheDir.resolve("cli.log").toFile()).start();
+        try {
+            assertTrue(process.waitFor(20,java.util.concurrent.TimeUnit.SECONDS));assertEquals(1,process.exitValue());
+            var result=Main.JSON.readTree(java.nio.file.Files.readAllBytes(output.resolve("result.json")));
+            assertEquals("ERROR",result.path("status").asText());assertEquals("CACHE_FAILURE",result.path("errorCode").asText());
+        } finally { process.destroyForcibly(); }
+    }
 }

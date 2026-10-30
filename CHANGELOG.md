@@ -1,5 +1,14 @@
 # Változásnapló
 
+## 0.1.4, 9. csomagkiadás – Információs jelzések és hibaexport
+
+- Az utólagos dokumentum-időbélyeggel lefedett PDF külön kék információs sávot kap, ha az érvényes aláírás csak korábbi változatra vonatkozik.
+- A natív ellenőrzés általános hibái és befejezetlen állapotai információs sávban jelennek meg.
+- Részletes, engedélylistával szűrt `summary.json` és `summary.txt` export nevek, tanúsítványtartalom, helyi útvonalak és szabad szöveges diagnosztika nélkül.
+- Motorhiba, hibás válasz, összeomlás és időtúllépés után is exportálhatók a rendelkezésre álló diagnosztikai fájlok.
+- A v2 gyorsítótár atomikusan tárolt SHA-256-ellenőrzőösszeggel érzékeli a bizonyítékok sérülését. Cache-hiba esetén a folyamat leáll, nincs automatikus frissítési vagy cache nélküli kerülőút.
+- Regressziós tesztek a látható módosítást követő időbélyegre, a sérült cache-re, az adatminimalizált összefoglalóra és a hibaexportokra.
+
 ## 0.1.4, 8. csomagkiadás – Ellenőrzött technikai többlet
 
 - Szűk, verziózott engedélylista a PDF utáni üres karakterekre és UUID MIME-záróhatárolóra.

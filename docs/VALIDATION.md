@@ -71,3 +71,13 @@ A gyorsítótár tesztjei több tároló közös kvótáját, az induláskori le
 a kéréshez kötött OCSP-tárolást és a zárolófájlok korlátját is vizsgálják.
 A Qt-próba külön ellenőrzi az érvényes, hibás és nem eldönthető időbélyeg kijelzését,
 a csak időbélyeget tartalmazó dokumentumot, valamint a 256 MiB feletti munkapéldányt.
+
+## Információs sávok és hibaexport
+
+A látható PDF-módosítás után létrehozott dokumentum-időbélyeg integrációs tesztje
+ellenőrzi a korábbi aláírás részleges lefedettségét és a `TIMESTAMP_ONLY` értékelést.
+A szokásos teljes aláírás-lefedettség és az önálló időbélyeg nem kap ilyen jelzést.
+A Qt-teszt megvizsgálja a sáv feltételes megjelenítését, az engedélylistás összefoglaló
+adatminimalizálását, valamint a tényleges exportfájlokat hibás JSON, motorhiba,
+cache-hiba, összeomlás és időtúllépés után is. A cache-tesztek sérült formátumot,
+ellenőrzőösszeg-eltérést, hibás segédadatot és letöltés utáni írási hibát vizsgálnak.
