@@ -67,6 +67,10 @@ nem feltétlenül az aláírás létrehozásának pontos pillanatát.
 A jelenlegi PDF-változatot teljesen lefedő, érvényes dokumentum-időbélyeg is igazolhatja
 a lefedettséget. Ez nem helyettesíti az aláíró aláírását és nem tesz érvényessé egy hibás
 aláírást. Utólag, az időbélyeg után hozzáadott bájtokat továbbra is jelezzük.
+Ha a jelenlegi változatot csak egy utólagos dokumentum-időbélyeg fedi le, az érvényes
+aláírás pedig korábbi változatra vonatkozik, külön kék információs sáv jelzi, hogy az
+időbélyeg az aláíró későbbi módosításokhoz adott jóváhagyását nem igazolja.
+A szokásos teljes aláírás-lefedettség és az önálló, aláírás nélküli időbélyeg nem kap ilyen sávot.
 
 ## Nagy fájlok és korlátok
 
@@ -135,13 +139,23 @@ sudo pacman -S okular
    vagy válaszd az Eszközök menü megfelelő pontját.
 3. Várd meg az eredményt. A **Megszakítás** leállítja a folyamatban lévő ellenőrzést.
 4. A **Részletek megjelenítése** gombbal nyithatók meg a diagnosztikai adatok;
-   a **Jelentések mentése…** gombbal menthetők a jelentések.
+   a **Jelentések mentése…** gombbal menthetők a jelentések, sikertelen ellenőrzés után is.
+
+Az export `summary.json` és `summary.txt` fájlja állapotokat, minősítéseket,
+lefedettségi adatokat, kapcsolatokat, DSS-hibakódokat, bizalmilista-állapotokat,
+cache-statisztikákat és futási adatokat tartalmaz. Az aláírások és időbélyegek S1/T1
+sorszámot kapnak; az összefoglalóból kimaradnak a nevek, tanúsítványok, szolgáltatási
+URL-ek, fájlútvonalak és a szabad szöveges hibaüzenetek. A dokumentumhoz kötődő
+technikai adatok miatt ez nem formális anonimizálási eljárás.
+A mellékelt eredeti JSON/XML-jelentések és a napló változatlan diagnosztikai anyagok,
+személyes adatot is tartalmazhatnak; ezeket a szűrt összefoglalótól külön kezeld.
 
 Korábban testreszabott eszköztár esetén kézzel is hozzá kellhet adni a műveletet:
 **Beállítások → Eszköztárak beállítása…**. A művelet belső azonosítója `validate_eutl`.
 
-Az összesítés csak akkor zöld, ha minden aláírás ellenőrzése sikeres, és legalább egy
-érvényes aláírás lefedi a jelenlegi PDF-változatot. Az aláírás érvényessége és a jelenlegi
+Az összesítés akkor zöld, ha minden aláírás ellenőrzése sikeres, és a jelenlegi változatot
+érvényes aláírás vagy dokumentum-időbélyeg fedi le, illetve csak felismert technikai
+utótag tér el. A kizárólag utólagos időbélyeggel lefedett változat külön információs sávot kap. Az aláírás érvényessége és a jelenlegi
 változat lefedettsége külön jelenik meg. A korábbi aláírások korábbi változatokra is vonatkozhatnak.
 Az aláírás után hozzáadott bájtok vagy az ismeretlen lefedettség sárga összesítést eredményeznek;
 ettől egy korábbi változat érvényes aláírása nem válik érvénytelenné.
@@ -150,8 +164,8 @@ Aláírás nélküli PDF, hibás motorválasz vagy eltérő fájllenyomat nem ka
 
 ## Gyorsítótár és natív tanúsítványtárolás
 
-A bizonyítékok gyorsítótára alapértelmezetten `$XDG_CACHE_HOME/okular-eutl/v1`,
-az `XDG_CACHE_HOME` hiányában `~/.cache/okular-eutl/v1`. Az első sikeres ellenőrzés
+A bizonyítékok gyorsítótára alapértelmezetten `$XDG_CACHE_HOME/okular-eutl/v2`,
+az `XDG_CACHE_HOME` hiányában `~/.cache/okular-eutl/v2`. Az első sikeres ellenőrzés
 feltölti a gyorsítótárat. Ugyanazzal a tanúsítvánnyal aláírt későbbi dokumentumoknál
 újra felhasználhatók a bizonyítékok és a tagállami listák keresési segédadatai,
 de **minden új dokumentum és aláírás külön ellenőrzésen megy át**.
@@ -169,6 +183,14 @@ Az integráció nem módosítja a Poppler natív NSS-adatbázisát, a Firefox ta
 vagy a rendszer bizalmi beállításait. A natív aláíráspanel és az EU-s ellenőrzőablak
 eltérő ellenőrzési folyamatot használ. Egy tanúsítvány NSS-be importálása nem őrizné meg
 annak EU-s minősítését, és nem váltaná ki a későbbi visszavonás-ellenőrzéseket.
+
+A v2 gyorsítótár a hálózati bizonyítékokhoz és a listakeresési segédadatokhoz
+ellenőrzőösszeget tárol. A régi v1 könyvtárat az új motor nem olvassa és nem törli;
+az új könyvtár az első ellenőrzéskor feltöltődik. A lejárat rendes frissítést indít,
+de sérült bejegyzés vagy cache-írási/olvasási hiba leállítja az ellenőrzést,
+`CACHE_FAILURE` hibakóddal. Javítás vagy kézi törlés után az ellenőrzés újraindítható.
+A motor nem folytatja az ellenőrzést cache nélkül, és a cache-hibát nem rejti el
+általános hálózati hibaként.
 
 A gyorsítótár csökkenti az ismétlődő munkát, de nem garantál azonnali vagy teljesen hálózat nélküli ellenőrzést.
 Egy rövid élettartamú OCSP-választ két dokumentum között is frissíteni kellhet.

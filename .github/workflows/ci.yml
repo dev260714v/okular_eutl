@@ -42,9 +42,12 @@ jobs:
           sha256sum -c /tmp/first-source.sha256
           git diff --exit-code -- PKGBUILD okular-eutl.patch
   dialog:
-    name: Párbeszédablak
+    name: Párbeszédablak (${{ matrix.qstring }})
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      matrix:
+        qstring: ['plain', 'builder']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -52,6 +55,12 @@ jobs:
       - name: A Qt6 tesztfüggőségeinek telepítése
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends g++ pkg-config qt6-base-dev
       - name: A párbeszédablak fordítása és próbája képernyő nélkül
+        env:
+          EUTL_QSTRING_MODE: ${{ matrix.qstring }}
         run: |
-          c++ -std=c++17 -fPIC -DQT_NO_CAST_FROM_ASCII -DQT_NO_CAST_TO_ASCII -DQT_NO_CAST_FROM_BYTEARRAY -I. tests/ui-smoke.cpp $(pkg-config --cflags --libs Qt6Widgets) -o /tmp/okular-eutl-ui-test
+          builder_flags=()
+          if [[ "$EUTL_QSTRING_MODE" == builder ]]; then
+            builder_flags=(-DQT_USE_QSTRINGBUILDER -DQT_USE_FAST_OPERATOR_PLUS)
+          fi
+          c++ "${builder_flags[@]}" -std=c++17 -fPIC -DQT_NO_CAST_FROM_ASCII -DQT_NO_CAST_TO_ASCII -DQT_NO_CAST_FROM_BYTEARRAY -I. tests/ui-smoke.cpp $(pkg-config --cflags --libs Qt6Widgets) -o /tmp/okular-eutl-ui-test
           QT_QPA_PLATFORM=offscreen /tmp/okular-eutl-ui-test

@@ -24,6 +24,7 @@
 #include <QThread>
 #include <QPointer>
 #include <QSet>
+#include <QMap>
 #include <memory>
 #include <QVBoxLayout>
 
@@ -53,6 +54,96 @@ inline QString badge(const QString &indication) {
     return QStringLiteral("<span style='color:%1; background-color:%2; font-weight:bold;'>%3</span>")
         .arg(v.foreground, v.background, v.text);
 }
+// Export only explicitly selected technical fields. Never copy free-text DSS
+// messages, names, certificates, URLs, paths or exception text into this summary.
+inline QJsonObject technicalSummary(const QJsonObject &root) {
+    QJsonObject out{{QStringLiteral("summarySchema"), 1},
+        {QStringLiteral("engine"), QStringLiteral("DSS 6.5.1 / Okular EUTL 0.1.4")}};
+    const auto numbers = [](const QJsonObject &source, QJsonObject &target, const QStringList &keys) {
+        for (const auto &key : keys) if (source.value(key).isDouble() || source.value(key).isBool()) target.insert(key, source.value(key));
+    };
+    const auto token = [](const QJsonValue &value) {
+        const QString text = value.toString();
+        for (const QChar c : text) if (!((c >= QLatin1Char('A') && c <= QLatin1Char('Z')) || c.isDigit() || c == QLatin1Char('_'))) return QString();
+        return text.size() <= 128 ? text : QString();
+    };
+    const auto tokens = [&token](const QJsonObject &source, QJsonObject &target, const QStringList &keys) {
+        for (const auto &key : keys) { const auto text = token(source.value(key)); if (!text.isEmpty()) target.insert(key, text); }
+    };
+    numbers(root, out, {QStringLiteral("schema"), QStringLiteral("fileSize"), QStringLiteral("elapsedMillis"), QStringLiteral("acceptedTrustedLists"),
+        QStringLiteral("trustedCertificateCount"), QStringLiteral("listHintFallback")});
+    tokens(root, out, {QStringLiteral("status"), QStringLiteral("timestampStatus"), QStringLiteral("errorCode")});
+    const auto time = QDateTime::fromString(root.value(QStringLiteral("validationTime")).toString(), Qt::ISODateWithMs);
+    if (time.isValid()) out.insert(QStringLiteral("validationTime"), time.toUTC().toString(Qt::ISODateWithMs));
+    QJsonObject cache;
+    const auto sourceCache = root.value(QStringLiteral("cache")).toObject();
+    numbers(sourceCache, cache, {QStringLiteral("trustedListMaxAgeHours"), QStringLiteral("certificateMaxAgeDays"), QStringLiteral("storesValidationVerdicts"),
+        QStringLiteral("maxTotalBytes"), QStringLiteral("maxEntries"), QStringLiteral("revocationMaxAgeSeconds"), QStringLiteral("trustedListLoadMillis"),
+        QStringLiteral("trustedListCacheHits"), QStringLiteral("trustedListDownloadAttempts"), QStringLiteral("reusedSignerCertificates"),
+        QStringLiteral("documentValidationMillis"), QStringLiteral("savedValidSignerCertificates"), QStringLiteral("totalResourceCacheHits"), QStringLiteral("totalResourceDownloadAttempts")});
+    tokens(sourceCache, cache, {QStringLiteral("listScope")});
+    out.insert(QStringLiteral("cache"), cache);
+    const auto signatures = root.value(QStringLiteral("signatures")).toArray();
+    const auto timestamps = root.value(QStringLiteral("timestamps")).toArray();
+    QMap<QString, QString> aliases;
+    for (int i = 0; i < signatures.size(); ++i) aliases.insert(signatures[i].toObject().value(QStringLiteral("id")).toString(), QStringLiteral("S%1").arg(i + 1));
+    for (int i = 0; i < timestamps.size(); ++i) aliases.insert(timestamps[i].toObject().value(QStringLiteral("id")).toString(), QStringLiteral("T%1").arg(i + 1));
+    const auto references = [&aliases](const QJsonArray &ids) {
+        QJsonArray result;
+        for (const auto &id : ids) if (aliases.contains(id.toString()) && !id.toString().isEmpty()) result.append(aliases.value(id.toString()));
+        return result;
+    };
+    const auto inventory = [&](const QJsonArray &items, const QString &prefix) {
+        QJsonArray result;
+        for (int i = 0; i < items.size(); ++i) {
+            const auto source = items[i].toObject();
+            QJsonObject item{{QStringLiteral("id"), QStringLiteral("%1%2").arg(prefix).arg(i + 1)}};
+            tokens(source, item, {QStringLiteral("indication"), QStringLiteral("subIndication"), QStringLiteral("qualification"), QStringLiteral("coverage"), QStringLiteral("type")});
+            numbers(source, item, {QStringLiteral("signedRevisionEnd"), QStringLiteral("messageImprintFound"), QStringLiteral("messageImprintIntact"), QStringLiteral("coversSignature"), QStringLiteral("documentTimestamp")});
+            for (const auto &key : {QStringLiteral("errors"), QStringLiteral("warnings"), QStringLiteral("qualificationErrors"), QStringLiteral("qualificationWarnings")}) {
+                QJsonArray codes;
+                for (const auto &message : source.value(key).toArray()) {
+                    const auto code = token(message.toObject().value(QStringLiteral("key")));
+                    if (!code.isEmpty()) codes.append(code);
+                }
+                item.insert(key, codes);
+            }
+            for (const auto &key : {QStringLiteral("timestampIds"), QStringLiteral("timestampedSignatureIds")})
+                if (source.contains(key)) item.insert(key, references(source.value(key).toArray()));
+            result.append(item);
+        }
+        return result;
+    };
+    out.insert(QStringLiteral("signatures"), inventory(signatures, QStringLiteral("S")));
+    out.insert(QStringLiteral("timestamps"), inventory(timestamps, QStringLiteral("T")));
+    out.insert(QStringLiteral("signatureCount"), signatures.size());
+    out.insert(QStringLiteral("timestampCount"), timestamps.size());
+    QJsonObject coverage;
+    const auto sourceCoverage = root.value(QStringLiteral("documentCoverage")).toObject();
+    tokens(sourceCoverage, coverage, {QStringLiteral("status"), QStringLiteral("assessment")});
+    for (const auto &key : {QStringLiteral("coveringSignatureIds"), QStringLiteral("coveringTimestampIds"), QStringLiteral("earlierSignatureIds")})
+        coverage.insert(key, references(sourceCoverage.value(key).toArray()));
+    const auto sourceTail = sourceCoverage.value(QStringLiteral("technicalTail")).toObject();
+    QJsonObject tail;
+    tokens(sourceTail, tail, {QStringLiteral("policy"), QStringLiteral("kind"), QStringLiteral("byteCoverage"), QStringLiteral("contentAssessment")});
+    numbers(sourceTail, tail, {QStringLiteral("unsignedBytes"), QStringLiteral("signedRevisionEnd")});
+    if (!tail.isEmpty()) coverage.insert(QStringLiteral("technicalTail"), tail);
+    out.insert(QStringLiteral("documentCoverage"), coverage);
+    QJsonArray lists;
+    for (const auto &value : root.value(QStringLiteral("trustedLists")).toArray()) {
+        QJsonObject list{{QStringLiteral("id"), QStringLiteral("TL%1").arg(lists.size() + 1)}};
+        const auto source = value.toObject();
+        numbers(source, list, {QStringLiteral("usable")});
+        tokens(source, list, {QStringLiteral("indication"), QStringLiteral("subIndication")});
+        for (const auto &key : {QStringLiteral("issueDate"), QStringLiteral("nextUpdate")}) {
+            const auto date = QDateTime::fromString(source.value(key).toString(), Qt::ISODateWithMs);
+            if (date.isValid()) list.insert(key, date.toUTC().toString(Qt::ISODateWithMs));
+        }
+        lists.append(list);
+    }
+    out.insert(QStringLiteral("trustedLists"), lists);
+    return out;
+}
 }
 
 // No shell, HTTP server or external browser is used by the integration.
@@ -76,6 +167,14 @@ public:
         m_timestampHeading->setWordWrap(true);
         m_timestampHeading->setMargin(10);
         layout->addWidget(m_timestampHeading);
+        m_information = new QLabel(this);
+        m_information->setObjectName(QStringLiteral("eutl_information"));
+        m_information->setWordWrap(true);
+        m_information->setTextFormat(Qt::PlainText);
+        m_information->setMargin(10);
+        m_information->setStyleSheet(QStringLiteral("QLabel { color:#1565c0; background-color:#e3f2fd; border-radius:8px; }"));
+        m_information->hide();
+        layout->addWidget(m_information);
         m_progress = new QProgressBar(this);
         m_progress->setObjectName(QStringLiteral("eutl_progress"));
         m_progress->setRange(0, 0);
@@ -127,17 +226,22 @@ public:
         m_timeout->setSingleShot(true);
         connect(m_timeout, &QTimer::timeout, this, [this] {
             m_done = true;
+            m_failureCode = QStringLiteral("TIMEOUT");
             m_process->kill();
+            m_process->waitForFinished(1000);
             fail(QStringLiteral("Az ellenőrzés túllépte az időkorlátot. Nincs érvényességi eredmény."));
         });
         connect(m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
             if (m_done || error != QProcess::FailedToStart) return;
             m_done = true;
+            m_failureCode = QStringLiteral("ENGINE_START_FAILED");
             m_timeout->stop();
             fail(QStringLiteral("Nem indítható az /usr/bin/okular-eutl-engine. Telepítse az ellenőrzőmotort."));
         });
         connect(m_process, qOverload<int, QProcess::ExitStatus>(&QProcess::finished), this,
                 [this](int code, QProcess::ExitStatus status) {
+            m_exitCode = code;
+            m_crashed = status != QProcess::NormalExit;
             if (m_done) return;
             m_done = true;
             m_timeout->stop();
@@ -171,6 +275,7 @@ public:
         connect(m_snapshot, &QThread::finished, this, [this, state] {
             if (!state->error.isEmpty()) { fail(state->error); return; }
             m_hash = state->hash;
+            m_inputSize = state->size;
             m_view->setPlainText(QStringLiteral("Az aláírások és időbélyegek ellenőrzése folyamatban…"));
             m_process->setArguments({m_run->filePath(QStringLiteral("input.pdf")), m_run->path(), QStringLiteral("/etc/okular-eutl")});
             m_process->start();
@@ -189,6 +294,7 @@ public:
         }
     }
 private:
+    friend struct EutlDialogTest;
     void showVerdict(const QString &indication, const QString &text = {})
     {
         const auto v = EutlUi::verdict(indication);
@@ -201,6 +307,7 @@ private:
     }
     void finishBusy()
     {
+        m_finishedMillis = m_clock.elapsed();
         m_tick->stop();
         m_progress->hide();
         m_close->setText(QStringLiteral("Bezárás"));
@@ -209,6 +316,9 @@ private:
     void fail(const QString &reason)
     {
         finishBusy();
+        m_runStatus = QStringLiteral("ERROR");
+        m_save->setEnabled(m_run->isValid());
+        if (m_failureCode.isEmpty()) m_failureCode = QStringLiteral("ENGINE_RESULT_ERROR");
         showVerdict(QStringLiteral("INDETERMINATE"));
         m_timestampHeading->setText(QStringLiteral("Időbélyegzés: nem ellenőrizhető"));
         QFile log(m_run->filePath(QStringLiteral("engine.log")));
@@ -256,8 +366,10 @@ private:
             || root.value(QStringLiteral("sha256")).toString() != m_hash) {
             fail(QStringLiteral("Az eredmény nem a vizsgált PDF-példányhoz tartozik.")); return;
         }
+        m_result = root; // Only retain after schema/hash binding succeeds.
         const QString state = root.value(QStringLiteral("status")).toString();
         if (state == QStringLiteral("ERROR")) {
+            m_failureCode = root.value(QStringLiteral("errorCode")).toString();
             fail(root.value(QStringLiteral("error")).toString()); return;
         }
         if (code != 0 || (state != QStringLiteral("COMPLETED") && state != QStringLiteral("NO_SIGNATURES"))) {
@@ -267,6 +379,7 @@ private:
             fail(QStringLiteral("Hiányzó időbélyegadatok. Frissítse az ellenőrzőmotort.")); return;
         }
         finishBusy();
+        m_runStatus = state;
         const QJsonArray signatures = root.value(QStringLiteral("signatures")).toArray();
         const QJsonArray timestamps = root.value(QStringLiteral("timestamps")).toArray();
         const auto coverage = root.value(QStringLiteral("documentCoverage")).toObject();
@@ -293,6 +406,10 @@ private:
         m_timestampHeading->setText(QStringLiteral("Időbélyegzés: ") + (timestamps.isEmpty() ? QStringLiteral("⚠ NINCS SZOLGÁLTATÓI IDŐBÉLYEG") : timestampVerdict.text));
         m_timestampHeading->setStyleSheet(QStringLiteral("QLabel { color:%1; background-color:%2; border-radius:8px; font-weight:bold; }")
             .arg(timestampVerdict.foreground, timestampVerdict.background));
+        if (coverage.value(QStringLiteral("assessment")).toString() == QStringLiteral("TIMESTAMP_ONLY")) {
+            m_information->setText(QStringLiteral("ⓘ A jelenlegi PDF-változatot utólagos dokumentum-időbélyeg védi. Az eredeti aláírás korábbi változatra vonatkozik; az időbélyeg az azóta történt módosítások aláíró általi jóváhagyását nem igazolja."));
+            m_information->show();
+        }
         QString html;
         QSet<QString> shownTimestamps;
         for (const auto &value : signatures) {
@@ -331,8 +448,9 @@ private:
             html += timestampCoverage ? QStringLiteral("<p>✓ A jelenlegi PDF-változatot érvényes dokumentum-időbélyeg védi.</p>")
                 : QStringLiteral("<p>✓ A jelenlegi PDF-változatot érvényes aláírás lefedi.</p>");
         } else if (coverage.value(QStringLiteral("assessment")).toString() == QStringLiteral("TECHNICAL_ONLY")) {
-            html += QStringLiteral("<p style='color:#1565c0'>ⓘ A PDF lezárása után %1 bájt felismert technikai többlet található. Az aláírás érvényes; a többlet nem része az aláírt adatoknak. Részletek az exportált jelentésben.</p>")
-                .arg(coverage.value(QStringLiteral("technicalTail")).toObject().value(QStringLiteral("unsignedBytes")).toInt());
+            m_information->setText(QStringLiteral("ⓘ A PDF lezárása után %1 bájt felismert technikai többlet található. Az aláírás érvényes; a többlet nem része az aláírt adatoknak. Részletek az exportált jelentésben.")
+                .arg(coverage.value(QStringLiteral("technicalTail")).toObject().value(QStringLiteral("unsignedBytes")).toInt()));
+            m_information->show();
         } else if (!signatures.isEmpty() || !timestamps.isEmpty()) {
             html += QStringLiteral("<p><b>⚠ A jelenlegi PDF teljes lefedettsége nem igazolt. Az aláírás vagy időbélyeg korábbi változatra vonatkozhat.</b></p>");
         }
@@ -350,14 +468,42 @@ private:
         if (!dir.mkdir(name) || !dir.cd(name)) {
             QMessageBox::warning(this, windowTitle(), QStringLiteral("Nem hozható létre új jelentéskönyvtár.")); return;
         }
+        const auto error = exportReports(dir.path());
+        if (!error.isEmpty()) { QMessageBox::warning(this, windowTitle(), error); return; }
+        QMessageBox::information(this, windowTitle(), QStringLiteral("A jelentések elkészültek:\n") + dir.path());
+    }
+    QString exportReports(const QString &directory) const
+    {
+        QDir dir(directory);
+        // Always export a bounded, non-identifying technical summary, even when
+        // the engine crashed, timed out or produced no consumable result.
+        auto summary = EutlUi::technicalSummary(m_result);
+        QJsonObject run{{QStringLiteral("status"), m_runStatus}, {QStringLiteral("elapsedMillis"), m_finishedMillis},
+            {QStringLiteral("processCrashed"), m_crashed}, {QStringLiteral("inputBytes"), m_inputSize}};
+        if (m_exitCode != -1) run.insert(QStringLiteral("exitCode"), m_exitCode);
+        // Failure codes are internal constants, never exception messages or paths.
+        run.insert(QStringLiteral("failureCode"), m_failureCode == QStringLiteral("CACHE_FAILURE") ? m_failureCode
+            : m_failureCode == QStringLiteral("TIMEOUT") ? m_failureCode
+            : m_failureCode == QStringLiteral("ENGINE_START_FAILED") ? m_failureCode
+            : m_runStatus == QStringLiteral("ERROR") ? QStringLiteral("ENGINE_RESULT_ERROR") : QString());
+        summary.insert(QStringLiteral("run"), run);
+        const auto bytes = QJsonDocument(summary).toJson(QJsonDocument::Indented);
+        for (const auto &entry : {QStringLiteral("summary.json"), QStringLiteral("summary.txt")}) {
+            QSaveFile target(dir.filePath(entry));
+            const auto data = entry.endsWith(QStringLiteral(".txt"))
+                ? QStringLiteral("Okular EUTL – technikai összefoglaló\nSzemélynevek, tanúsítványtartalom, helyi útvonalak és szabad szöveges hibaüzenetek nélkül.\n\n").toUtf8() + bytes : bytes;
+            if (!target.open(QIODevice::WriteOnly) || target.write(data) != data.size() || !target.commit()) {
+                return QStringLiteral("A technikai összefoglaló mentése sikertelen.");
+            }
+        }
         QStringList files = {QStringLiteral("result.json"), QStringLiteral("simple-report.xml"), QStringLiteral("detailed-report.xml"), QStringLiteral("diagnostic-data.xml"), QStringLiteral("etsi-report.xml"), QStringLiteral("engine.log")};
         for (const auto &name : files) {
             const QString path = m_run->filePath(name);
             if (QFile::exists(path) && !QFile::copy(path, dir.filePath(name))) {
-                QMessageBox::warning(this, windowTitle(), QStringLiteral("A jelentések mentése csak részben sikerült.")); return;
+                return QStringLiteral("A jelentések mentése csak részben sikerült.");
             }
         }
-        QMessageBox::information(this, windowTitle(), QStringLiteral("A jelentések elkészültek:\n") + dir.path());
+        return {};
     }
     static constexpr qint64 MaxInputBytes = 2LL * 1024 * 1024 * 1024 - 1;
     struct SnapshotState { QString hash, error; qint64 size = 0; };
@@ -365,6 +511,7 @@ private:
     QPointer<QThread> m_snapshot;
     QLabel *m_heading = nullptr;
     QLabel *m_timestampHeading = nullptr;
+    QLabel *m_information = nullptr;
     QProgressBar *m_progress = nullptr;
     QLabel *m_elapsedLabel = nullptr;
     QElapsedTimer m_clock;
@@ -376,6 +523,11 @@ private:
     QPushButton *m_save = nullptr;
     QProcess *m_process = nullptr;
     QTimer *m_timeout = nullptr;
+    QJsonObject m_result;
+    QString m_runStatus = QStringLiteral("ERROR"), m_failureCode;
+    qint64 m_inputSize = 0, m_finishedMillis = 0;
+    int m_exitCode = -1;
+    bool m_crashed = false;
     QString m_hash, m_source;
     bool m_done = false;
 };

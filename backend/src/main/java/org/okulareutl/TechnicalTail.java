@@ -38,7 +38,7 @@ final class TechnicalTail {
     }
     static Map<String,Object> apply(Path input, List<Map<String,Object>> signatures, Map<String,Object> coverage) {
         var result = new LinkedHashMap<String,Object>(coverage);
-        result.put("assessment", coverage.get("status"));
+        result.putIfAbsent("assessment", coverage.get("status"));
         if (!"PARTIAL".equals(coverage.get("status"))) return result;
         for (var signature : signatures) {
             if (!"TOTAL_PASSED".equals(String.valueOf(signature.get("indication")))

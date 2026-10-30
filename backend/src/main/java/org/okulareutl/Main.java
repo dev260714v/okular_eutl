@@ -83,6 +83,7 @@ public final class Main {
         } catch (Exception e) {
             e.printStackTrace(System.err);
             result.put("status", "ERROR");
+            result.put("errorCode", e instanceof CacheStore.CacheFailure ? "CACHE_FAILURE" : "VALIDATION_ERROR");
             result.put("error", e instanceof eu.europa.esig.dss.pades.exception.InvalidPasswordException
                 ? "A jelszóval védett PDF-ek ellenőrzése nem támogatott."
                 : e.getClass().getSimpleName() + ": " + e.getMessage());
@@ -147,7 +148,8 @@ public final class Main {
         });
         long listsStarted = System.nanoTime();
         try { refreshLists(job); }
-        catch (Exception e) { if (!preferredLists.isEmpty()) throw new RetryAllLists(); throw e; }
+        catch (Exception e) { cache.checkHealthy(); if (!preferredLists.isEmpty()) throw new RetryAllLists(); throw e; }
+        cache.checkHealthy();
         cacheInfo.put("trustedListLoadMillis",(System.nanoTime()-listsStarted)/1_000_000);
         cacheInfo.put("trustedListCacheHits",cache.hits.get());
         cacheInfo.put("trustedListDownloadAttempts",cache.downloads.get());
@@ -188,7 +190,10 @@ public final class Main {
         validator.setCertificateVerifier(verifier);
         validator.setEnableEtsiValidationReport(true);
         long documentStarted = System.nanoTime();
-        var reports = validator.validateDocument();
+        eu.europa.esig.dss.validation.reports.Reports reports;
+        try { reports = validator.validateDocument(); }
+        catch (Exception e) { cache.checkHealthy(); throw e; }
+        cache.checkHealthy();
         cacheInfo.put("documentValidationMillis",(System.nanoTime()-documentStarted)/1_000_000);
         Files.writeString(output.resolve("simple-report.xml"), reports.getXmlSimpleReport());
         Files.writeString(output.resolve("detailed-report.xml"), reports.getXmlDetailedReport());
@@ -206,9 +211,11 @@ public final class Main {
         for (var signature : validator.getSignatures()) {
             if (eu.europa.esig.dss.enumerations.Indication.TOTAL_PASSED.equals(simple.getIndication(signature.getId()))) {
                 try { cache.rememberSigner(signature.getSigningCertificateToken()); cache.rememberLists(signature.getSigningCertificateToken(), usedLists); savedSigners++; }
+                catch (CacheStore.CacheFailure e) { throw e; }
                 catch (Exception e) { cacheInfo.put("saveWarning", "Nem sikerült minden aláíró tanúsítványát menteni: " + e.getMessage()); }
             }
         }
+        cache.checkHealthy();
         cacheInfo.put("savedValidSignerCertificates",savedSigners);
         cacheInfo.put("totalResourceCacheHits",cache.hits.get());
         cacheInfo.put("totalResourceDownloadAttempts",cache.downloads.get());

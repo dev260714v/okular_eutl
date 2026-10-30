@@ -29,18 +29,37 @@ final class CacheStore {
     static final int MAX_ENTRIES = 4096;
     private static final Object[] SLOTS = java.util.stream.IntStream.range(0, 64).mapToObj(i -> new Object()).toArray();
     private static final Object BUDGET_LOCK = new Object();
+    static final byte[] MAGIC = "EUTLCACHE2\n".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+    static final class CacheFailure extends DSSException {
+        CacheFailure(Throwable cause) { super("Gyorsítótárhiba: az ellenőrzés leállt. A gyorsítótár javítása vagy törlése után próbálja újra.", cause); }
+    }
+    private final java.util.concurrent.atomic.AtomicReference<CacheFailure> failure = new java.util.concurrent.atomic.AtomicReference<>();
+    CacheFailure broken(Throwable cause) {
+        var error = cause instanceof CacheFailure c ? c : new CacheFailure(cause);
+        failure.compareAndSet(null, error);
+        return failure.get();
+    }
+    Path directory(String bucket) {
+        checkHealthy();
+        try { return privateDirectory(root.resolve(bucket)); }
+        catch (IOException | RuntimeException e) { throw broken(e); }
+    }
+    void checkHealthy() { if (failure.get() != null) throw failure.get(); }
     final Path root;
     final AtomicInteger hits = new AtomicInteger(), downloads = new AtomicInteger();
     CacheStore(Path root) throws IOException {
-        this.root = privateDirectory(root.toAbsolutePath().normalize());
+        try { this.root = privateDirectory(root.toAbsolutePath().normalize()); }
+        catch (IOException | RuntimeException e) { throw broken(e); }
         budget(() -> { prune(MAX_TOTAL_BYTES, MAX_ENTRIES); return null; });
     }
 
     @FunctionalInterface interface IOAction<T> { T run() throws IOException; }
     <T> T budget(IOAction<T> action) throws IOException {
+        checkHealthy();
         synchronized (BUDGET_LOCK) {
             try (var channel = FileChannel.open(root.resolve(".budget.lock"), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
                  var lock = channel.lock()) { return action.run(); }
+            catch (IOException | RuntimeException e) { throw broken(e); }
         }
     }
 
@@ -56,9 +75,10 @@ final class CacheStore {
                 var attributes = Files.readAttributes(p, java.nio.file.attribute.BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
                 long age = now - attributes.lastModifiedTime().toMillis();
                 String bucket = root.relativize(p).getName(0).toString();
-                Duration ttl = bucket.equals("trusted-lists") || name.endsWith(".lists.json") ? LIST_TTL
+                Duration ttl = bucket.equals("trusted-lists") || name.endsWith(".lists.bin") ? LIST_TTL
                     : bucket.equals("crl") || bucket.equals("ocsp") ? Duration.ofMinutes(5) : CERT_TTL;
-                if (!attributes.isRegularFile() || age < 0 || age >= ttl.toMillis() || name.endsWith(".tmp") || name.endsWith(".lock")) {
+                if (!attributes.isRegularFile()) throw broken(new IOException("Nem szabályos gyorsítótár-bejegyzés"));
+                if (age < 0 || age >= ttl.toMillis() || name.endsWith(".tmp") || name.endsWith(".lock")) {
                     Files.deleteIfExists(p);
                 } else { entries.add(p); total += attributes.size(); }
             }
@@ -88,7 +108,7 @@ final class CacheStore {
         if (override != null && !override.isBlank()) return Path.of(override);
         String xdg = System.getenv("XDG_CACHE_HOME");
         Path base = xdg != null && Path.of(xdg).isAbsolute() ? Path.of(xdg) : Path.of(System.getProperty("user.home"), ".cache");
-        return base.resolve("okular-eutl/v1");
+        return base.resolve("okular-eutl/v2");
     }
     static Path privateDirectory(Path p) throws IOException {
         Files.createDirectories(p);
@@ -134,14 +154,35 @@ final class CacheStore {
             return !issue.isAfter(now) && next.isAfter(now);
         } catch (Exception e) { return false; }
     }
-    static boolean fresh(Path file, Duration ttl, boolean list, boolean archived) {
-        try {
-            long age = System.currentTimeMillis() - Files.getLastModifiedTime(file).toMillis();
-            if (Files.isSymbolicLink(file) || age < 0 || age >= ttl.toMillis() || Files.size(file) > (list ? MAX_BYTES : MAX_CERT_BYTES)) return false;
-            byte[] bytes = Files.readAllBytes(file);
-            if (list) return listWindow(bytes, Instant.now(), archived);
-            return !CertificateFactory.getInstance("X.509").generateCertificates(new ByteArrayInputStream(bytes)).isEmpty();
-        } catch (Exception e) { return false; }
+    // One atomic file binds payload bytes to a checksum. This detects accidental
+    // corruption; it never replaces DSS signature/validity checks or grants trust.
+    static byte[] pack(byte[] bytes) {
+        var data = new byte[MAGIC.length + 32 + bytes.length];
+        System.arraycopy(MAGIC, 0, data, 0, MAGIC.length);
+        var checksum = HexFormat.of().parseHex(digest(bytes));
+        System.arraycopy(checksum, 0, data, MAGIC.length, 32);
+        System.arraycopy(bytes, 0, data, MAGIC.length + 32, bytes.length);
+        return data;
+    }
+    static byte[] unpack(byte[] data) throws IOException {
+        if (data.length < MAGIC.length + 32 || !Arrays.equals(MAGIC, Arrays.copyOf(data, MAGIC.length)))
+            throw new IOException("Sérült gyorsítótár-formátum");
+        byte[] bytes = Arrays.copyOfRange(data, MAGIC.length + 32, data.length);
+        if (!MessageDigest.isEqual(Arrays.copyOfRange(data, MAGIC.length, MAGIC.length + 32),
+                HexFormat.of().parseHex(digest(bytes)))) throw new IOException("Sérült gyorsítótár-ellenőrzőösszeg");
+        return bytes;
+    }
+    byte[] cached(Path file, Duration ttl, long maxBytes, boolean list, boolean certificate, boolean archived) throws IOException {
+        if (!Files.exists(file, LinkOption.NOFOLLOW_LINKS)) return null;
+        if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(file))
+            throw new IOException("Nem szabályos gyorsítótár-bejegyzés");
+        long age = System.currentTimeMillis() - Files.getLastModifiedTime(file).toMillis();
+        if (age < 0 || age >= ttl.toMillis()) return null;
+        if (Files.size(file) > maxBytes + MAGIC.length + 32) throw new IOException("Túlméretes gyorsítótár-bejegyzés");
+        byte[] bytes = unpack(Files.readAllBytes(file));
+        if (certificate && !isCertificate(bytes)) throw new IOException("Sérült gyorsítótár-tanúsítvány");
+        if (list && !listWindow(bytes, Instant.now(), archived)) return null; // normal signed-list expiry
+        return bytes;
     }
     final class Loader implements DataLoader, DSSFileLoader {
         final DataLoader upstream;
@@ -158,11 +199,13 @@ final class CacheStore {
             this(upstream, bucket, false, false, ttl, maxBytes);
         }
         private Loader(DataLoader upstream, String bucket, boolean list, boolean certificate, Duration ttl, long maxBytes) throws IOException {
-            this.upstream = upstream; this.directory = privateDirectory(root.resolve(bucket));
+            this.upstream = upstream;
+            this.directory = directory(bucket);
             this.list = list; this.certificate = certificate; this.ttl = ttl; this.maxBytes = maxBytes;
         }
         public byte[] get(String url) { return fetch(url, null); }
         private byte[] fetch(String url, byte[] request) {
+            checkHealthy();
             boolean archived = list && url.equals("https://ec.europa.eu/tools/lotl/Final_EU_TSL-UKsigned.xml");
             String identity = request == null ? url : url + "\0POST\0" + digest(request);
             String key = digest(identity.getBytes(java.nio.charset.StandardCharsets.UTF_8));
@@ -171,21 +214,16 @@ final class CacheStore {
             synchronized (SLOTS[slot]) {
                 try (var channel = FileChannel.open(root.resolve(".slot-" + slot), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
                      var lock = channel.lock()) {
-                    byte[] cached = budget(() -> {
-                        if (list || certificate) return fresh(file, ttl, list, archived) ? Files.readAllBytes(file) : null;
-                        if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) return null;
-                        long age = System.currentTimeMillis() - Files.getLastModifiedTime(file).toMillis();
-                        return age >= 0 && age < ttl.toMillis() && Files.size(file) <= maxBytes ? Files.readAllBytes(file) : null;
-                    });
+                    byte[] cached = budget(() -> cached(file, ttl, maxBytes, list, certificate, archived));
                     if (cached != null) { hits.incrementAndGet(); return cached; }
                     downloads.incrementAndGet();
                     byte[] bytes = request == null ? upstream.get(url) : upstream.post(url, request);
                     if (bytes == null || bytes.length == 0) throw new DSSException("Üres hálózati válasz: " + url);
                     if (bytes.length > maxBytes) throw new DSSException("A hálózati válasz túllépte a méretkorlátot");
                     boolean cacheable = list ? listWindow(bytes, Instant.now(), archived) : !certificate || isCertificate(bytes);
-                    if (cacheable) store(file, bytes);
+                    if (cacheable) store(file, pack(bytes));
                     return bytes;
-                } catch (IOException e) { throw new DSSException("Gyorsítótár írási/olvasási hiba", e); }
+                } catch (IOException e) { throw broken(e); }
             }
         }
         public DSSDocument getDocument(String url) { return new InMemoryDocument(get(url), url); }
@@ -206,21 +244,23 @@ final class CacheStore {
     }
     CommonCertificateSource signerCertificates(List<CertificateToken> signers) throws IOException {
         var source = new CommonCertificateSource();
-        Path directory=privateDirectory(root.resolve("validated-signers"));
+        Path directory=directory("validated-signers");
         // Exact lookups only: opening one document must not parse every past signer's certificate.
         for (var signer : signers) {
             if (signer == null) continue;
             Path p = directory.resolve(digest(signer.getEncoded()) + ".cer");
             try {
                 long age = System.currentTimeMillis() - Files.getLastModifiedTime(p).toMillis();
-                if (Files.isSymbolicLink(p) || age < 0 || age >= CERT_TTL.toMillis() || Files.size(p)>MAX_CERT_BYTES) continue;
+                if (Files.isSymbolicLink(p) || Files.size(p)>MAX_CERT_BYTES) throw new IOException("Sérült aláírói tanúsítvány");
+                if (age < 0 || age >= CERT_TTL.toMillis()) continue;
                 try {
                     byte[] bytes=Files.readAllBytes(p);
-                    if (!p.getFileName().toString().equals(digest(bytes)+".cer")) continue;
+                    if (!p.getFileName().toString().equals(digest(bytes)+".cer")) throw new IOException("Sérült aláírói tanúsítvány");
                     var cert=(X509Certificate)CertificateFactory.getInstance("X.509").generateCertificate(new ByteArrayInputStream(bytes));
                     source.addCertificate(new CertificateToken(cert));
-                } catch (Exception ignored) { /* malformed cache entries cannot establish trust */ }
+                } catch (Exception e) { throw broken(e); }
             } catch (NoSuchFileException ignored) { /* cache miss */ }
+            catch (IOException e) { throw broken(e); }
         }
         return source; // Adjunct certificates only, never CommonTrustedCertificateSource.
     }
@@ -228,7 +268,7 @@ final class CacheStore {
         if (token == null) return;
         byte[] bytes=token.getEncoded();
         if (bytes.length > MAX_CERT_BYTES) return;
-        Path directory = privateDirectory(root.resolve("validated-signers"));
+        Path directory = directory("validated-signers");
         store(directory.resolve(digest(bytes) + ".cer"), bytes);
         budget(() -> { pruneSigners(directory); return null; });
     }
@@ -254,9 +294,9 @@ final class CacheStore {
             total -= Files.size(p); count--; removeSigner(p);
         }
         // Hints without a live certificate cannot grow indefinitely either.
-        try (var paths = Files.newDirectoryStream(directory, "*.lists.json")) {
+        try (var paths = Files.newDirectoryStream(directory, "*.lists.bin")) {
             for (Path p : paths) {
-                Path cert = directory.resolve(p.getFileName().toString().replace(".lists.json", ".cer"));
+                Path cert = directory.resolve(p.getFileName().toString().replace(".lists.bin", ".cer"));
                 if (Files.isSymbolicLink(p) || !Files.exists(cert, LinkOption.NOFOLLOW_LINKS)
                         || now - Files.getLastModifiedTime(p, LinkOption.NOFOLLOW_LINKS).toMillis() >= LIST_TTL.toMillis())
                     Files.deleteIfExists(p);
@@ -266,28 +306,31 @@ final class CacheStore {
 
     static void removeSigner(Path p) throws IOException {
         Files.deleteIfExists(p);
-        Files.deleteIfExists(p.resolveSibling(p.getFileName().toString().replace(".cer", ".lists.json")));
+        Files.deleteIfExists(p.resolveSibling(p.getFileName().toString().replace(".cer", ".lists.bin")));
     }
 
     Set<String> listsFor(List<CertificateToken> signers) throws IOException {
+        checkHealthy();
         if (signers.isEmpty()) return Set.of();
         Set<String> urls = new HashSet<>();
         for (var signer : signers) {
             if (signer == null) return Set.of();
-            Path p = root.resolve("validated-signers").resolve(digest(signer.getEncoded())+".lists.json");
+            Path p = root.resolve("validated-signers").resolve(digest(signer.getEncoded())+".lists.bin");
             try {
                 long age=System.currentTimeMillis()-Files.getLastModifiedTime(p).toMillis();
-                if (Files.isSymbolicLink(p) || age<0 || age>=LIST_TTL.toMillis() || Files.size(p)>65536) return Set.of();
-                var node=Main.JSON.readTree(Files.readAllBytes(p));
-                if (!node.isArray() || node.isEmpty()) return Set.of();
-                for (var value:node) { if (!value.isTextual()) return Set.of();urls.add(value.asText()); }
-            } catch (Exception e) { return Set.of(); }
+                if (Files.isSymbolicLink(p) || Files.size(p)>65536) throw new IOException("Sérült listakeresési bejegyzés");
+                if (age<0 || age>=LIST_TTL.toMillis()) return Set.of();
+                var node=Main.JSON.readTree(unpack(Files.readAllBytes(p)));
+                if (!node.isArray() || node.isEmpty()) throw new IOException("Sérült listakeresési segédadat");
+                for (var value:node) { if (!value.isTextual()) throw new IOException("Sérült listakeresési cím");urls.add(value.asText()); }
+            } catch (NoSuchFileException e) { return Set.of(); }
+            catch (Exception e) { throw broken(e); }
         }
         return urls;
     }
     void rememberLists(CertificateToken signer, Set<String> urls) throws Exception {
         if (signer == null || urls.isEmpty()) return;
-        Path p=privateDirectory(root.resolve("validated-signers")).resolve(digest(signer.getEncoded())+".lists.json");
-        store(p, Main.JSON.writeValueAsBytes(urls));
+        Path p=directory("validated-signers").resolve(digest(signer.getEncoded())+".lists.bin");
+        store(p, pack(Main.JSON.writeValueAsBytes(urls)));
     }
 }

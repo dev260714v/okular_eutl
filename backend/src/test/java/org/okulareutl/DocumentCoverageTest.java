@@ -26,4 +26,16 @@ class DocumentCoverageTest {
         assertEquals("FULL", DocumentCoverage.signature(range(0,2147470000L,2147480000L,3647), true, Integer.MAX_VALUE));
     }
 
+    @Test void laterTimestampDisclosesEarlierSignatureWithoutChangingValidity() {
+        var signatures=List.<Map<String,Object>>of(Map.of("id","S1","coverage","PARTIAL","indication","TOTAL_PASSED"));
+        var timestamps=List.<Map<String,Object>>of(Map.of("id","T1","coverage","FULL","indication","PASSED",
+            "documentTimestamp",true,"messageImprintFound",true,"messageImprintIntact",true));
+        var result=DocumentCoverage.summarize(signatures,timestamps);
+        assertEquals("FULL",result.get("status"));assertEquals("TIMESTAMP_ONLY",result.get("assessment"));
+        assertEquals(List.of("S1"),result.get("earlierSignatureIds"));
+        assertFalse(DocumentCoverage.summarize(signatures).containsKey("assessment"));
+        assertFalse(DocumentCoverage.summarize(List.of(),timestamps).containsKey("assessment"));
+        var latest=new ArrayList<>(signatures);latest.add(Map.of("id","S2","coverage","FULL","indication","TOTAL_PASSED"));
+        assertFalse(DocumentCoverage.summarize(latest,timestamps).containsKey("assessment"));
+    }
 }

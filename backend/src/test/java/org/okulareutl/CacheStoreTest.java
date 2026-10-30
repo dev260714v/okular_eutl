@@ -39,14 +39,35 @@ class CacheStoreTest {
     }
     @Test void signedNextUpdateOverridesRecentFilesystemTimestamp() throws Exception {
         var remote=new Remote();var loader=new CacheStore(root).new Loader(remote,"lists",true);loader.get(URL);
-        Files.write(cachedFile(),xml(Instant.now().minusSeconds(100),Instant.now().minusSeconds(1)));
+        Files.write(cachedFile(),CacheStore.pack(xml(Instant.now().minusSeconds(100),Instant.now().minusSeconds(1))));
         loader.get(URL);assertEquals(2,remote.gets.get());
     }
     @Test void futureIssueDateIsNotReusable() {assertFalse(CacheStore.currentList(xml(Instant.now().plusSeconds(60),Instant.now().plusSeconds(600)),Instant.now()));}
     @Test void xmlExternalEntitiesAreRejected() {assertFalse(CacheStore.currentList("<!DOCTYPE x [<!ENTITY a SYSTEM 'file:///etc/passwd'>]><x>&a;</x>".getBytes(),Instant.now()));}
-    @Test void corruptCacheTriggersRefresh() throws Exception {
-        var remote=new Remote();var loader=new CacheStore(root).new Loader(remote,"lists",true);loader.get(URL);
-        Files.writeString(cachedFile(),"corrupt");loader.get(URL);assertEquals(2,remote.gets.get());
+    @Test void corruptCacheStopsWithoutNetworkRefresh() throws Exception {
+        var remote=new Remote();var store=new CacheStore(root);var loader=store.new Loader(remote,"lists",true);loader.get(URL);
+        Files.writeString(cachedFile(),"corrupt");
+        assertThrows(CacheStore.CacheFailure.class,()->loader.get(URL));
+        assertThrows(CacheStore.CacheFailure.class,store::checkHealthy);
+        assertEquals(1,remote.gets.get());
+    }
+    @Test void checksumDetectsSyntacticallyValidButChangedCache() throws Exception {
+        var remote=new Remote();var store=new CacheStore(root);var loader=store.new Loader(remote,"lists",true);loader.get(URL);
+        var bytes=Files.readAllBytes(cachedFile());bytes[bytes.length-3]^=1;Files.write(cachedFile(),bytes);
+        assertThrows(CacheStore.CacheFailure.class,()->loader.get(URL));assertEquals(1,remote.gets.get());
+    }
+    @Test void cacheWriteFailureIsFatalEvenIfDownloadSucceeded() throws Exception {
+        var store=new CacheStore(root);
+        var remote=new Remote() {
+            @Override public byte[] get(String url) {
+                try { Files.createDirectory(cachedFile());Files.writeString(cachedFile().resolve("blocker"),"x"); }
+                catch (java.io.IOException e) { throw new RuntimeException(e); }
+                return super.get(url);
+            }
+        };
+        var loader=store.new Loader(remote,"lists",true);
+        assertThrows(CacheStore.CacheFailure.class,()->loader.get(URL));
+        assertThrows(CacheStore.CacheFailure.class,store::checkHealthy);
     }
     @Test void staleCacheIsNotUsedWhenNetworkFails() throws Exception {
         var remote=new Remote();var loader=new CacheStore(root).new Loader(remote,"lists",true);loader.get(URL);
@@ -119,15 +140,15 @@ class CacheStoreTest {
     }
     @Test void expiredListHintsFallBackToAllLists() throws Exception {
         var signers=fixtureSigners();var store=new CacheStore(root);store.rememberLists(signers.get(0),Set.of("https://example.invalid/list"));
-        try(var paths=Files.newDirectoryStream(root.resolve("validated-signers"),"*.lists.json")) {
+        try(var paths=Files.newDirectoryStream(root.resolve("validated-signers"),"*.lists.bin")) {
             for(var path:paths)Files.setLastModifiedTime(path,FileTime.from(Instant.now().minus(Duration.ofHours(7))));
         }
         assertTrue(store.listsFor(List.of(signers.get(0))).isEmpty());
     }
-    @Test void corruptListHintsFallBackToAllLists() throws Exception {
+    @Test void corruptListHintsStopValidation() throws Exception {
         var signers=fixtureSigners();var store=new CacheStore(root);store.rememberLists(signers.get(0),Set.of("https://example.invalid/list"));
-        try(var paths=Files.newDirectoryStream(root.resolve("validated-signers"),"*.lists.json")) { for(var path:paths)Files.writeString(path,"bad-json"); }
-        assertTrue(store.listsFor(List.of(signers.get(0))).isEmpty());
+        try(var paths=Files.newDirectoryStream(root.resolve("validated-signers"),"*.lists.bin")) { for(var path:paths)Files.writeString(path,"bad-json"); }
+        assertThrows(CacheStore.CacheFailure.class,()->store.listsFor(List.of(signers.get(0))));
     }
     @Test void unrelatedCertificatesAreNotLoaded() throws Exception {
         var signers=fixtureSigners();var store=new CacheStore(root);
@@ -142,15 +163,15 @@ class CacheStoreTest {
         Files.setLastModifiedTime(cert,FileTime.from(Instant.now().minus(Duration.ofDays(31))));
         assertEquals(0,store.signerCertificates(List.of(old)).getNumberOfCertificates());
         store.rememberSigner(signers.get(1));assertFalse(Files.exists(cert));
-        assertFalse(Files.exists(cert.resolveSibling(cert.getFileName().toString().replace(".cer",".lists.json"))));
+        assertFalse(Files.exists(cert.resolveSibling(cert.getFileName().toString().replace(".cer",".lists.bin"))));
     }
     @Test void pruneEnforcesSignerCountLimitAndRemovesOrphanHints() throws Exception {
         Path dir=CacheStore.privateDirectory(root.resolve("validated-signers"));
         for(int i=0;i<CacheStore.MAX_SIGNERS+3;i++)Files.write(dir.resolve(i+".cer"),new byte[]{1});
-        Files.writeString(dir.resolve("orphan.lists.json"),"[]");
+        Files.writeString(dir.resolve("orphan.lists.bin"),"[]");
         CacheStore.pruneSigners(dir);
         try(var paths=Files.newDirectoryStream(dir,"*.cer")) { int count=0;for(var p:paths)count++;assertEquals(CacheStore.MAX_SIGNERS,count); }
-        assertFalse(Files.exists(dir.resolve("orphan.lists.json")));
+        assertFalse(Files.exists(dir.resolve("orphan.lists.bin")));
     }
     @Test void pruneEnforcesTotalSignerByteLimit() throws Exception {
         Path dir=CacheStore.privateDirectory(root.resolve("validated-signers"));

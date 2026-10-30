@@ -42,7 +42,19 @@ final class DocumentCoverage {
                 coveringTimestamps.add(String.valueOf(timestamp.get("id")));
             else if (!"PARTIAL".equals(coverage)) unknown = true;
         }
-        return Map.of("status", !covering.isEmpty() || !coveringTimestamps.isEmpty() ? "FULL" : unknown ? "UNKNOWN" : "PARTIAL",
-            "coveringSignatureIds", covering, "coveringTimestampIds", coveringTimestamps);
+        var result = new LinkedHashMap<String,Object>();
+        result.put("status", !covering.isEmpty() || !coveringTimestamps.isEmpty() ? "FULL" : unknown ? "UNKNOWN" : "PARTIAL");
+        result.put("coveringSignatureIds", covering);
+        result.put("coveringTimestampIds", coveringTimestamps);
+        // A later timestamp proves existence, not the original signer's approval of
+        // intervening changes. Keep the validity verdict, but disclose this case.
+        var earlier = signatures.stream().filter(s -> "PARTIAL".equals(s.get("coverage"))
+            && "TOTAL_PASSED".equals(String.valueOf(s.get("indication"))))
+            .map(s -> String.valueOf(s.get("id"))).toList();
+        if (covering.isEmpty() && !coveringTimestamps.isEmpty() && !earlier.isEmpty()) {
+            result.put("assessment", "TIMESTAMP_ONLY");
+            result.put("earlierSignatureIds", earlier);
+        }
+        return result;
     }
 }
