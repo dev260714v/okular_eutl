@@ -67,7 +67,7 @@ source=(https://download.kde.org/stable/release-service/$pkgver/src/$_upstream-$
         okular-eutl-engine)
 sha256sums=('f9b39abcb7c6c3ace5d7acf669fa7ed47cf3aa7b932a8b6abe2abbd8075fc9f5'
             'SKIP'
-            'd5c5ed120a786fcf61f79d6d85dae1534b4117ad7400dc087548f5cc5e38602f'
+            '8ca1fce22799d6e00d71c55854cafca0212bb649e9020f84413bd612f934943a'
             '0cf91f1ea3eccefc93023fc1449669db348aded3fac11708aea965ab4496b635'
             '49ea759a03c74a4fff039dc2a32b881d036b1b784f70439dbe30c5dd49af790a')
 validpgpkeys=(CA262C6C83DE4D2FB28A332A3A6A4DB839EAA6D7  # Albert Astals Cid <aacid@kde.org>

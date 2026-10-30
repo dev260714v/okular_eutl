@@ -240,11 +240,11 @@ public:
         });
         connect(m_process, qOverload<int, QProcess::ExitStatus>(&QProcess::finished), this,
                 [this](int code, QProcess::ExitStatus status) {
+            m_exitCode = code;
+            m_crashed = status != QProcess::NormalExit;
             if (m_done) return;
             m_done = true;
             m_timeout->stop();
-            m_exitCode = code;
-            m_crashed = status != QProcess::NormalExit;
             readResult(code, status);
         });
         m_process->setProgram(engine);
@@ -307,6 +307,7 @@ private:
     }
     void finishBusy()
     {
+        m_finishedMillis = m_clock.elapsed();
         m_tick->stop();
         m_progress->hide();
         m_close->setText(QStringLiteral("Bezárás"));
@@ -477,7 +478,7 @@ private:
         // Always export a bounded, non-identifying technical summary, even when
         // the engine crashed, timed out or produced no consumable result.
         auto summary = EutlUi::technicalSummary(m_result);
-        QJsonObject run{{QStringLiteral("status"), m_runStatus}, {QStringLiteral("elapsedMillis"), m_clock.elapsed()},
+        QJsonObject run{{QStringLiteral("status"), m_runStatus}, {QStringLiteral("elapsedMillis"), m_finishedMillis},
             {QStringLiteral("processCrashed"), m_crashed}, {QStringLiteral("inputBytes"), m_inputSize}};
         if (m_exitCode != -1) run.insert(QStringLiteral("exitCode"), m_exitCode);
         // Failure codes are internal constants, never exception messages or paths.
@@ -524,7 +525,7 @@ private:
     QTimer *m_timeout = nullptr;
     QJsonObject m_result;
     QString m_runStatus = QStringLiteral("ERROR"), m_failureCode;
-    qint64 m_inputSize = 0;
+    qint64 m_inputSize = 0, m_finishedMillis = 0;
     int m_exitCode = -1;
     bool m_crashed = false;
     QString m_hash, m_source;
